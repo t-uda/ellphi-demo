@@ -26,16 +26,16 @@ def _():
     # Configure matplotlib for publication quality
     plt.rcParams['pdf.fonttype'] = 42
     plt.rcParams['font.family'] = 'serif'
-    
+
     # Ensure output directories exist
-    os.makedirs("experiments/apct_2025/validation/figs", exist_ok=True)
-    os.makedirs("experiments/apct_2025/validation/data", exist_ok=True)
+    os.makedirs("public", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
 
     # Set random seed for reproducibility
     np.random.seed(42)
-    
+
     mo.md("# Task 1: Computational & Mathematical Validation")
-    return IPython, inv, mo, norm, np, os, pd, plt, sns, sys, time, tqdm, ellphi
+    return ellphi, inv, mo, norm, np, pd, plt, sns, time, tqdm
 
 
 @app.cell
@@ -51,20 +51,22 @@ def _(np):
 
 
 @app.cell
-def _(ellphi, generate_random_ellipsoid, mo, pd, time, tqdm):
-    mo.md(
-        r"""
-        ## Subtask 1.1: Scalability Benchmark
+def _(mo):
+    mo.md(r"""
+    ## Subtask 1.1: Scalability Benchmark
 
-        **Objective**: Quantify the computational cost of the tangency solver as a function of dimension $n$ and verify the performance gain of the C++ backend.
+    **Objective**: Quantify the computational cost of the tangency solver as a function of dimension $n$ and verify the performance gain of the C++ backend.
 
-        **Methodology**:
-        - **Dimensions**: $n \in \{2, 3, 5, 10, 20, 50, 100\}$
-        - **Sample Size**: 1,000 random ellipsoid pairs per dimension.
-        - **Backends**: Comparison between Pure Python and C++ Extension (if available).
-        """
-    )
+    **Methodology**:
+    - **Dimensions**: $n \in \{2, 3, 5, 10, 20, 50, 100\}$
+    - **Sample Size**: 1,000 random ellipsoid pairs per dimension.
+    - **Backends**: Comparison between Pure Python and C++ Extension (if available).
+    """)
+    return
 
+
+@app.cell
+def _(ellphi, generate_random_ellipsoid, pd, time, tqdm):
     def run_benchmark():
         dims = [2, 3, 5, 10, 20, 50, 100]
         n_samples = 1000
@@ -104,7 +106,7 @@ def _(ellphi, generate_random_ellipsoid, mo, pd, time, tqdm):
     df_benchmark = run_benchmark()
 
     # Save data
-    df_benchmark.to_csv("experiments/apct_2025/validation/data/scaling_benchmark.csv", index=False)
+    df_benchmark.to_csv("data/scaling_benchmark.csv", index=False)
     return (df_benchmark,)
 
 
@@ -124,51 +126,15 @@ def _(df_benchmark, plt):
     ax1.legend()
 
     plt.tight_layout()
-    plt.savefig("experiments/apct_2025/validation/figs/scaling_benchmark.pdf")
-    plt.savefig("experiments/apct_2025/validation/figs/scaling_benchmark.png")
-
-    return (fig1,)
-
-
-@app.cell
-
-
-def _(fig1, mo):
-
-
-    return mo.md(
-
-
-        f"""
-
-
-        ### Benchmark Results
-
-
-        Saved to `experiments/apct_2025/validation/figs/scaling_benchmark.pdf`
-
-
-        """
-
-
-    )
-
-
-
-
-
-
+    plt.savefig("public/scaling_benchmark.pdf")
+    plt.savefig("public/scaling_benchmark.png")
+    plt.show()
+    return
 
 
 @app.cell
-def _(fig1):
-    return fig1
-
-
-
-
-
-
+def _(mo):
+    return mo.image(src="public/scaling_benchmark.png")
 
 
 @app.cell
@@ -299,7 +265,7 @@ def _(
     df_grads, df_scatter = verify_gradients()
 
     # Save results
-    df_grads.to_csv("experiments/apct_2025/validation/data/gradient_verification.csv", index=False)
+    df_grads.to_csv("data/gradient_verification.csv", index=False)
 
     # Plot Box Plot
     fig2, ax2 = plt.subplots(figsize=(6, 4))
@@ -308,8 +274,9 @@ def _(
     ax2.set_title("Gradient Verification: Relative Error Distribution")
     ax2.legend()
     plt.tight_layout()
-    plt.savefig("experiments/apct_2025/validation/figs/gradient_verification.pdf")
-    plt.savefig("experiments/apct_2025/validation/figs/gradient_verification.png")
+    plt.savefig("public/gradient_verification.pdf")
+    # plt.savefig("public/gradient_verification.png")
+    plt.show()
 
     # Plot Scatter
     fig3, ax3 = plt.subplots(figsize=(5, 5))
@@ -327,56 +294,20 @@ def _(
     ax3.set_ylabel("Analytical Gradient")
     ax3.set_title("Gradient Alignment")
     plt.tight_layout()
-    plt.savefig("experiments/apct_2025/validation/figs/gradient_scatter.png")
-
-    return fig2, fig3
-
-
-@app.cell
-
-
-def _(fig2, fig3, mo):
-
-
-    return mo.md(
-
-
-        f"""
-
-
-        ### Gradient Verification Results
-
-
-        Saved plots to `experiments/apct_2025/validation/figs/`
-
-
-        """
-
-
-    )
-
-
-
-
-
-
+    plt.savefig("public/gradient_verification.png")
+    plt.savefig("public/gradient_scatter.png")
+    plt.show()
+    return
 
 
 @app.cell
-def _(fig2):
-    return fig2
+def _(mo):
+    return mo.image(src="public/gradient_verification.png")
 
 
 @app.cell
-def _(fig3):
-    return fig3
-
-
-
-
-
-
-
+def _(mo):
+    return mo.image(src="public/gradient_scatter.png")
 
 
 if __name__ == "__main__":

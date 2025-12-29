@@ -20,10 +20,14 @@ Move Jupyter notebooks here from the `ellphi` repository to keep the core librar
 - **Serena files**: Track `.serena/project.yml`; keep `.serena/cache/` and `.serena/memories/` ignored.
 - **Documentation**: Keep this `AGENTS.md` updated with any new project-specific rules or setup steps.
 - **Repository Layout**:
-  - `notebooks/`: For Jupyter and marimo notebooks.
+  - `notebooks/`: Contains demonstration projects.
+    - Each demo resides in its own subdirectory (e.g., `notebooks/demo_name/`).
+    - **Structure**:
+      - `app.py`: Main marimo notebook.
+      - `public/`: Static assets (images, pdfs). Marimo serves these automatically.
+      - `data/`: Generated datasets and CSVs.
   - `specs/`: Internal specifications and research notes.
   - `docs/`: GitHub Pages public reports and documentation.
-  - `data/`: (If needed) Small datasets for demos.
 
 ## Development Setup
 ```bash
@@ -36,16 +40,20 @@ poetry run marimo edit
 
 ## Recurring Issues & Prevention
 
-### Matplotlib Cache (Read-Only FS)
-- **Problem**: `MPLCONFIGDIR` defaults to a read-only home directory in some environments, causing warnings.
-- **Prevention**: Set `os.environ['MPLCONFIGDIR']` to a local writable path (e.g., `.cache/matplotlib`) **before** `import matplotlib.pyplot`.
+### Matplotlib Cache & Display
+- **Problem**: `MPLCONFIGDIR` warnings or figures not appearing in notebooks.
+- **Prevention**: 
+  1. Set `os.environ['MPLCONFIGDIR']` to `.cache/matplotlib` **before** importing pyplot.
+  2. **Call `plt.show()`**: To ensure figures are captured and displayed in the notebook, always call `plt.show()` at the end of the plotting cell.
 
 ### Marimo Export & GitHub Rendering
-- **Problem**: `marimo export ipynb` wraps outputs in custom HTML tags (`<marimo-mime-renderer>`) which GitHub's static viewer does not render.
-- **Prevention**: To ensure figures are visible on GitHub:
-  1. Save the figure as a **PNG** file to disk.
-  2. Display it using `IPython.display.Image(filename="...")` (ensure `IPython` is imported).
-  3. **Do not** rely solely on returning the Figure object if GitHub compatibility is required.
+- **Problem**: Figures may not be captured in exports if not explicitly shown or if GitHub's static viewer cannot render marimo's custom tags.
+- **Prevention**: 
+  1. **Use `mo.image` for Robustness**: To ensure figures are visible on GitHub (both in HTML and ipynb), save the figure as a **PNG** to the `public/` directory and display it using `mo.image(src="public/your_plot.png")`.
+  2. **Exporting with Outputs**: When exporting to Jupyter format, always use the `--include-outputs` and `-f` (force) flags:
+     ```bash
+     poetry run marimo export ipynb app.py -o notebook.ipynb --include-outputs -f
+     ```
 
 ### Marimo Multiple Definitions
 - **Problem**: Importing the same module (e.g., `import IPython`) in multiple cells causes `MultipleDefinitionError`.
