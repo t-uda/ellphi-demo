@@ -3,7 +3,6 @@
 **Objective**: Demonstrate the "Metric Learning" capability. Show that because the solver is differentiable, we can optimize ellipsoid parameters ($\Theta$) to maximize a topological signal (e.g., cycle persistence), thereby discovering the latent anisotropic structure of the data.
 
 ## 1. Environment & Setup
-- **Output**: `experiments/apct_2025/optimization/`
 - **Dependencies**: `ellphi`, `torch` or `jax` (if automatic differentiation integration is ready, otherwise manual gradient descent using the solver's gradient output).
 
 ## 2. Subtask 2.1: Gradient Field Visualization (Concept Demo)

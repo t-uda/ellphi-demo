@@ -3,7 +3,6 @@
 **Objective**: Demonstrate the practical superiority of Anisotropic PH over standard Isotropic (Euclidean) PH in noisy scenarios. Show that answering "What is the shape?" requires adapting the metric to the local geometry.
 
 ## 1. Environment & Setup
-- **Output**: `experiments/apct_2025/robustness/`
 - **Comparison Baseline**: Standard Rips Filtration (Euclidean distance).
 
 ## 2. Subtask 3.1: Topological Noise Tolerance
