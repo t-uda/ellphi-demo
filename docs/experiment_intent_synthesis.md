@@ -35,10 +35,10 @@ The execution plans are separated into three independent logical units for AI Ag
 
 1.  **[Task 1] Computational & Mathematical Validation**:
     *   Focus: Scalability, Differentiation Correctness.
-    *   Source: `additional_experiments.md` (Exp 1, 2) + `experiments.txt` (Task 3).
+    *   Detail: See `experiment_task_1_validation.md`.
 2.  **[Task 2] Inverse Problem & Optimization Demo**:
     *   Focus: Metric Learning, Gradient Visualization.
-    *   Source: `experiments.txt` (Task 1) + `additional_experiments.md` (Exp 3).
+    *   Detail: See `experiment_task_2_optimization.md`.
 3.  **[Task 3] Robustness Comparison**:
     *   Focus: Noise tolerance vs Euclidean VR.
-    *   Source: `experiments.txt` (Task 2).
+    *   Detail: See `experiment_task_3_robustness.md`.
