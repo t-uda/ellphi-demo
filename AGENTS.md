@@ -15,6 +15,7 @@ Move Jupyter notebooks here from the `ellphi` repository to keep the core librar
 - **Workflow**:
   - To edit marimo notebooks: `uv run marimo edit <notebook>.py`
   - To run jupyter: `uv run jupyter lab`
+  - To lint and format code: `uv run ruff check --fix .` and `uv run ruff format .`
 - **Deslop**: Use the `/deslop` workflow to remove AI-generated code slop when modifying files.
 - **Matplotlib**: Set `MPLCONFIGDIR` to a writable directory (e.g., `.cache/matplotlib`) at the start of scripts/notebooks to avoid "not a writable directory" warnings on some systems.
 - **Serena files**: Track `.serena/project.yml`; keep `.serena/cache/` and `.serena/memories/` ignored.

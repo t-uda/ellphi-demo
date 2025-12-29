@@ -14,15 +14,16 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import ellphi
     import time
-    from tqdm import tqdm
+
+    import ellphi
+    import marimo as mo
+    import matplotlib.pyplot as plt
+    import numpy as np
     import pandas as pd
     import seaborn as sns
     from numpy.linalg import inv, norm
+    from tqdm import tqdm
     return ellphi, inv, mo, norm, np, pd, plt, sns, time, tqdm
 
 

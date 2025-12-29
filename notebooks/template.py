@@ -7,8 +7,6 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import marimo as mo
-    import numpy as np
-    import matplotlib.pyplot as plt
     try:
         import ellphi
         ellphi_available = True
