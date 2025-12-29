@@ -16,6 +16,7 @@ Move Jupyter notebooks here from the `ellphi` repository to keep the core librar
   - To edit marimo notebooks: `poetry run marimo edit <notebook>.py`
   - To run jupyter: `poetry run jupyter lab`
 - **Deslop**: Use the `/deslop` workflow to remove AI-generated code slop when modifying files.
+- **Serena files**: Track `.serena/project.yml`; keep `.serena/cache/` and `.serena/memories/` ignored.
 - **Documentation**: Keep this `AGENTS.md` updated with any new project-specific rules or setup steps.
 - **Repository Layout**:
   - `notebooks/`: For Jupyter and marimo notebooks.
