@@ -1,0 +1,108 @@
+APCT投稿用 追加実験指示書：異方的PHの微分可能性と最適化
+
+1. 実験の目的と戦略
+
+Target Journal: Journal of Applied and Computational Topology (APCT)
+Core Value: 既存の理論（Kalisnik et al.）に対し、本研究は数値的安定性に加え、**「微分可能性（Differentiability）」を保証している点が最大の新規性である。
+Goal: 単に「計算できる」ことを示すのではなく、「微分可能であるため、PHの出力をガイドとして入力（楕円体のパラメータ）を最適化できる」**ことを実証する。これにより、「データに合わせて最適な異方性を学習できる（Metric Learning）」ことを示し、将来的にDeep Learningパイプラインへの統合や、バックプロパゲーションによるEnd-to-Endなトポロジカル学習が可能になるという大きな「夢」を提示する。
+
+2. 実装環境・前提
+
+言語: Python (NumPy, SciPy, PyTorch/JAX 等の自動微分ライブラリ、または自作の勾配計算モジュール)
+
+Core Library: 著者が作成した Differentiable Ellipsoid Tangency Solver (以下 Solver と呼称)
+
+Input: 点群データ $X \in \mathbb{R}^{n}$
+
+Output: パーシステンス図 (PD) および、損失関数 $L$ に対する楕円体パラメータ $\Theta$ の勾配 $\nabla_\Theta L$
+
+3. 追加実験タスク (Priority順)
+
+Task 1: 異方性の逆推定（Inverse Problem）
+
+目的: 「微分可能性」の最大の利点である「出力から入力を最適化できる能力」を証明する。Kalisnikらには不可能な実験。
+
+データセット:
+
+Ground Truth: 明確なサイクルを持つが、通常のユークリッド距離（等方的なVR複体）ではノイズに埋もれて検出できない人工データ。
+
+例: 縦横比 10:1 程度に極端に引き伸ばされた楕円上の点群（Stretchされた円）。
+
+実験手順:
+
+初期状態: 各点の周りの楕円体を「真円（等方的）」として初期化する。
+
+Forward: Solver を用いてPHを計算する。この時点では、サイクルはノイズとして現れるか、寿命が短いはずである。
+
+Loss Definition: 「最も寿命の長い $H_1$ 生成元（サイクル）のPersistence（寿命）を最大化する」ような損失関数 $L$ を設定する。
+
+* $L = - (\text{Death} - \text{Birth})_{\text{longest } H_1}$
+
+Backward: $\nabla_\Theta L$ を計算し、各点の楕円体の形状パラメータ（アスペクト比や回転角）を勾配降下法で更新する。
+
+Iteration: これを繰り返し、楕円体がデータの分布に合わせて「細長く」変形していく様子を記録する。
+
+期待される結果:
+
+初期状態では不明瞭だったサイクルが、最適化によって明瞭な（寿命の長い）シグナルとしてPD上に現れる。
+
+* 最適化された楕円体の形状が、Ground Truthの引き伸ばし方向と一致する。
+
+Conclusionへの貢献: 「本手法は、データの潜在的な構造に合わせてトポロジカルなレンズ（計量）を自動調整する『Metric Learning for TDA』の基礎となる。」
+
+Task 2: ノイズ耐性と安定性の比較（Robustness）
+
+目的: 既存の数値的アプローチや等方的PHに対する優位性を示す。
+
+データセット:
+
+Case A: 2つの近接した細長い構造（例：平行に並んだ2本の線分状の点群）。
+
+比較対象:
+
+標準的なVietoris-Rips (VR) Filtrations (Euclidean metric)
+
+本手法 (Anisotropic PH with optimized ellipsoids)
+
+実験手順:
+
+データにガウシアンノイズを徐々に付加していく。
+
+標準VRでは、ノイズが増えると2本の線分がつながってしまい、トポロジカルな特徴（2つの連結成分やその間の空隙）が即座に崩壊することを示す。
+
+* 本手法では、異方性を考慮しているため、ノイズに対して頑健に構造を維持できることを示す（ボトルネック距離の減衰率などで定量化できればベストだが、PDの可視化比較でも可）。
+
+Conclusionへの貢献: 「異方性を考慮することで、現実のノイズの多いデータに対してもロバストなトポロジー推定が可能になる。」
+
+Task 3: 計算コストと微分計算の精度検証（Technical Validation）
+
+目的: 「数値解析ジャーナルに行け」と言わせないための、計算機科学的な基礎体力証明。
+
+実験手順:
+
+微分精度の検証: 有限差分法（Finite Difference）による数値微分と、本手法の解析的微分（Analytical Gradient）の結果を比較する。
+
+誤差が $10^{-6}$ オーダー以下であることをプロットで示す。これが「信頼できるソルバー」の証拠となる。
+
+計算時間: 点数 $N$ や次元 $D$ に対する計算時間のスケーリングをプロットする。特に、微分計算のオーバーヘッドが許容範囲内であることを示す。
+
+4. 論文ストーリーへの組み込み案 (Abstract & Conclusion)
+
+Abstractの修正案（骨子）:
+
+... We introduce a differentiable ellipsoid tangency solver... Unlike existing theoretical frameworks, our solver enables gradient-based optimization of the filtration parameters. We demonstrate that this differentiability allows for inverse analysis, where the optimal anisotropic metric is learned directly from the topological signals of synthetic datasets. This opens the door to data-driven metric learning in TDA, bridging the gap between persistent homology and machine learning.
+
+Conclusionの修正案（骨子）:
+
+While theoretical foundations for anisotropic PH exist (e.g., Kalisnik et al.), our work provides the crucial computational engine: a provably stable and differentiable solver.
+The experiments on inverse problems demonstrate that our method can automatically discover the intrinsic anisotropy of data, a feat impossible with static filtration definitions.
+Although currently demonstrated on synthetic data, this "topological metric learning" framework holds immense potential for real-world applications such as detecting filamentary structures in cosmology or anisotropic fractures in material science.
+
+5. 生成すべき図表リスト
+
+Optimization History: 横軸にイテレーション回数、縦軸に最長寿命サイクルのPersistenceをとったグラフ。右肩上がりになるはず。
+
+Visual Evolution: 最適化の Step 0, Step 10, Step 100 における点群と楕円体の可視化（楕円がデータにフィットしていく様子）。
+
+Gradient Check: 有限差分と解析微分の散布図（$y=x$ に乗る）。
+
