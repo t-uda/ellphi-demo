@@ -6,6 +6,13 @@ app = marimo.App(width="full")
 
 @app.cell
 def _():
+    import os
+    import sys
+    import IPython
+    # Set MPLCONFIGDIR to a writable directory to avoid warnings
+    os.environ['MPLCONFIGDIR'] = os.path.join(os.getcwd(), ".cache", "matplotlib")
+    os.makedirs(os.environ['MPLCONFIGDIR'], exist_ok=True)
+
     import marimo as mo
     import numpy as np
     import matplotlib.pyplot as plt
@@ -14,23 +21,21 @@ def _():
     from tqdm import tqdm
     import pandas as pd
     import seaborn as sns
-    import os
     from numpy.linalg import inv, norm
 
     # Configure matplotlib for publication quality
     plt.rcParams['pdf.fonttype'] = 42
     plt.rcParams['font.family'] = 'serif'
-
+    
     # Ensure output directories exist
-    import os
     os.makedirs("experiments/apct_2025/validation/figs", exist_ok=True)
     os.makedirs("experiments/apct_2025/validation/data", exist_ok=True)
 
     # Set random seed for reproducibility
     np.random.seed(42)
-
+    
     mo.md("# Task 1: Computational & Mathematical Validation")
-    return ellphi, inv, mo, norm, np, pd, plt, sns, time, tqdm
+    return IPython, inv, mo, norm, np, os, pd, plt, sns, sys, time, tqdm, ellphi
 
 
 @app.cell
@@ -120,19 +125,51 @@ def _(df_benchmark, plt):
 
     plt.tight_layout()
     plt.savefig("experiments/apct_2025/validation/figs/scaling_benchmark.pdf")
+    plt.savefig("experiments/apct_2025/validation/figs/scaling_benchmark.png")
 
     return (fig1,)
 
 
 @app.cell
-def _(fig1, mo):
-    mo.md(f"""
-    ### Benchmark Results
-    Saved to `experiments/apct_2025/validation/figs/scaling_benchmark.pdf`
 
-    {mo.as_html(fig1)}
-    """)
+
+def _(fig1, mo):
+
+
+    return mo.md(
+
+
+        f"""
+
+
+        ### Benchmark Results
+
+
+        Saved to `experiments/apct_2025/validation/figs/scaling_benchmark.pdf`
+
+
+        """
+
+
+    )
+
+
+
+
+
+
+
+
+@app.cell
+def _(IPython, fig1):
+    IPython.display.display(IPython.display.Image(filename="experiments/apct_2025/validation/figs/scaling_benchmark.png"))
     return
+
+
+
+
+
+
 
 
 @app.cell
@@ -273,6 +310,7 @@ def _(
     ax2.legend()
     plt.tight_layout()
     plt.savefig("experiments/apct_2025/validation/figs/gradient_verification.pdf")
+    plt.savefig("experiments/apct_2025/validation/figs/gradient_verification.png")
 
     # Plot Scatter
     fig3, ax3 = plt.subplots(figsize=(5, 5))
@@ -296,14 +334,51 @@ def _(
 
 
 @app.cell
-def _(fig2, fig3, mo):
-    mo.md(f"""
-    ### Gradient Verification Results
-    Saved plots to `experiments/apct_2025/validation/figs/`
 
-    {mo.hstack([fig2, fig3], justify="start")}
-    """)
+
+def _(fig2, fig3, mo):
+
+
+    return mo.md(
+
+
+        f"""
+
+
+        ### Gradient Verification Results
+
+
+        Saved plots to `experiments/apct_2025/validation/figs/`
+
+
+        """
+
+
+    )
+
+
+
+
+
+
+
+
+@app.cell
+def _(IPython, fig2):
+    IPython.display.display(IPython.display.Image(filename="experiments/apct_2025/validation/figs/gradient_verification.png"))
     return
+
+
+@app.cell
+def _(IPython, fig3):
+    IPython.display.display(IPython.display.Image(filename="experiments/apct_2025/validation/figs/gradient_scatter.png"))
+    return
+
+
+
+
+
+
 
 
 if __name__ == "__main__":

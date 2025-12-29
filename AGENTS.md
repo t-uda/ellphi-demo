@@ -16,6 +16,7 @@ Move Jupyter notebooks here from the `ellphi` repository to keep the core librar
   - To edit marimo notebooks: `poetry run marimo edit <notebook>.py`
   - To run jupyter: `poetry run jupyter lab`
 - **Deslop**: Use the `/deslop` workflow to remove AI-generated code slop when modifying files.
+- **Matplotlib**: Set `MPLCONFIGDIR` to a writable directory (e.g., `.cache/matplotlib`) at the start of scripts/notebooks to avoid "not a writable directory" warnings on some systems.
 - **Serena files**: Track `.serena/project.yml`; keep `.serena/cache/` and `.serena/memories/` ignored.
 - **Documentation**: Keep this `AGENTS.md` updated with any new project-specific rules or setup steps.
 - **Repository Layout**:
@@ -31,3 +32,20 @@ poetry install
 # Run marimo
 poetry run marimo edit
 ```
+
+## Recurring Issues & Prevention
+
+### Matplotlib Cache (Read-Only FS)
+- **Problem**: `MPLCONFIGDIR` defaults to a read-only home directory in some environments, causing warnings.
+- **Prevention**: Set `os.environ['MPLCONFIGDIR']` to a local writable path (e.g., `.cache/matplotlib`) **before** `import matplotlib.pyplot`.
+
+### Marimo Export & GitHub Rendering
+- **Problem**: `marimo export ipynb` wraps outputs in custom HTML tags (`<marimo-mime-renderer>`) which GitHub's static viewer does not render.
+- **Prevention**: To ensure figures are visible on GitHub:
+  1. Save the figure as a **PNG** file to disk.
+  2. Display it using `IPython.display.Image(filename="...")` (ensure `IPython` is imported).
+  3. **Do not** rely solely on returning the Figure object if GitHub compatibility is required.
+
+### Marimo Multiple Definitions
+- **Problem**: Importing the same module (e.g., `import IPython`) in multiple cells causes `MultipleDefinitionError`.
+- **Prevention**: Consolidate all common imports into a single setup cell at the beginning of the notebook.
