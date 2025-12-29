@@ -4,15 +4,16 @@ __generated_with = "0.18.4"
 app = marimo.App(width="full")
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Task 1: Computational & Mathematical Validation"
+    """)
+    return
+
+
 @app.cell
 def _():
-    import os
-    import sys
-    import IPython
-    # Set MPLCONFIGDIR to a writable directory to avoid warnings
-    os.environ['MPLCONFIGDIR'] = os.path.join(os.getcwd(), ".cache", "matplotlib")
-    os.makedirs(os.environ['MPLCONFIGDIR'], exist_ok=True)
-
     import marimo as mo
     import numpy as np
     import matplotlib.pyplot as plt
@@ -22,20 +23,26 @@ def _():
     import pandas as pd
     import seaborn as sns
     from numpy.linalg import inv, norm
+    return ellphi, inv, mo, norm, np, pd, plt, sns, time, tqdm
+
+
+@app.cell(hide_code=True)
+def _(np, plt):
+    import os
+
+    # Set MPLCONFIGDIR to a writable directory to avoid warnings
+    os.environ["MPLCONFIGDIR"] = os.path.join(os.getcwd(), ".cache", "matplotlib")
+    os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
     # Configure matplotlib for publication quality
-    plt.rcParams['pdf.fonttype'] = 42
-    plt.rcParams['font.family'] = 'serif'
-
-    # Ensure output directories exist
-    os.makedirs("public", exist_ok=True)
-    os.makedirs("data", exist_ok=True)
+    plt.rcParams["pdf.fonttype"] = 42
+    plt.rcParams["font.family"] = "serif"
 
     # Set random seed for reproducibility
     np.random.seed(42)
 
-    mo.md("# Task 1: Computational & Mathematical Validation")
-    return ellphi, inv, mo, norm, np, pd, plt, sns, time, tqdm
+
+    return
 
 
 @app.cell
@@ -45,12 +52,12 @@ def _(np):
         mean = np.random.randn(dim)
         # Generate random covariance matrix
         A = np.random.randn(dim, dim)
-        cov = A @ A.T + np.eye(dim) * 0.1 # Ensure positive definite
+        cov = A @ A.T + np.eye(dim) * 0.1  # Ensure positive definite
         return mean, cov
     return (generate_random_ellipsoid,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ## Subtask 1.1: Scalability Benchmark
@@ -72,9 +79,7 @@ def _(ellphi, generate_random_ellipsoid, pd, time, tqdm):
         n_samples = 1000
         results = []
 
-        backends = ['python']
-        if ellphi.has_cpp_backend():
-            backends.append('cpp') # Assuming 'cpp' or 'auto' maps to C++ if available
+        backends = ["python", "cpp"]
 
         for dim in tqdm(dims, desc="Benchmarking dimensions"):
             # Pre-generate data to just measure solver time
@@ -92,21 +97,18 @@ def _(ellphi, generate_random_ellipsoid, pd, time, tqdm):
                     ellphi.tangency(pcoef, qcoef, backend=backend)
                 end_time = time.time()
                 avg_time_ms = (end_time - start_time) / n_samples * 1000
-                results.append({
-                    "Dimension": dim,
-                    "Backend": backend,
-                    "Time (ms)": avg_time_ms
-                })
+                results.append(
+                    {
+                        "Dimension": dim,
+                        "Backend": backend,
+                        "Time (ms)": avg_time_ms,
+                    }
+                )
 
         return pd.DataFrame(results)
 
-    # Run benchmark if not just viewing
-    # In marimo, cells run automatically.
-    # We can use a button to trigger re-run if needed, but for now just run.
     df_benchmark = run_benchmark()
-
-    # Save data
-    df_benchmark.to_csv("data/scaling_benchmark.csv", index=False)
+    df_benchmark
     return (df_benchmark,)
 
 
@@ -117,7 +119,12 @@ def _(df_benchmark, plt):
 
     # Check if we have multiple backends
     for backend, group in df_benchmark.groupby("Backend"):
-        ax1.loglog(group["Dimension"], group["Time (ms)"], marker='o', label=f"Backend: {backend}")
+        ax1.loglog(
+            group["Dimension"],
+            group["Time (ms)"],
+            marker="o",
+            label=f"Backend: {backend}",
+        )
 
     ax1.set_xlabel("Dimension ($n$)")
     ax1.set_ylabel("Time per Check (ms)")
@@ -126,18 +133,12 @@ def _(df_benchmark, plt):
     ax1.legend()
 
     plt.tight_layout()
-    plt.savefig("public/scaling_benchmark.pdf")
-    plt.savefig("public/scaling_benchmark.png")
+    plt.savefig("scaling_benchmark.pdf")
     plt.show()
     return
 
 
-@app.cell
-def _(mo):
-    return mo.image(src="public/scaling_benchmark.png")
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ## Subtask 1.2: Gradient Correctness (Finite Difference Check)
@@ -177,11 +178,10 @@ def _(ellphi, inv, norm, np):
 
         lamb = norm_n1 / norm_n2
 
-
-
-        grad = - n2 / (t * (1.0 + 1.0/lamb))
+        grad = -n2 / (t * (1.0 + 1.0 / lamb))
 
         return grad
+
 
     def tangency_time_func(m_variable, c_variable, m_fixed, c_fixed):
         pcoef = ellphi.coef_from_cov(m_fixed, c_fixed)
@@ -205,16 +205,16 @@ def _(
     tqdm,
 ):
     def verify_gradients():
-        dims = [2, 5, 10, 20, 50]
+        dims = [2, 3, 5, 10, 20, 50, 100]
         epsilon = 1e-6
         results = []
 
         # For scatter plot
-        scatter_data = {'num': [], 'ana': []}
+        scatter_data = {"num": [], "ana": []}
 
         for dim in tqdm(dims, desc="Verifying Gradients"):
             # Use 10 samples per dimension for statistics
-            for _ in range(10): 
+            for _ in range(10):
                 m1, c1 = generate_random_ellipsoid(dim)
                 m2, c2 = generate_random_ellipsoid(dim)
 
@@ -226,7 +226,9 @@ def _(
                 point = res.point
 
                 # Analytical Gradient
-                grad_ana = compute_analytical_gradient(m1, c1, m2, c2, t_base, point)
+                grad_ana = compute_analytical_gradient(
+                    m1, c1, m2, c2, t_base, point
+                )
 
                 # Numerical Gradient (Finite Difference on m2)
                 grad_num = np.zeros(dim)
@@ -247,67 +249,38 @@ def _(
                 ana_norm = norm(grad_ana)
 
                 if ana_norm < 1e-12:
-                    rel_error = 0.0 # Should not happen with random ellipsoids
+                    rel_error = 0.0  # Should not happen with random ellipsoids
                 else:
                     rel_error = diff_norm / ana_norm
 
-                results.append({
-                    "Dimension": dim,
-                    "Relative Error": rel_error,
-                    "Log10 Error": np.log10(rel_error + 1e-20)
-                })
+                results.append(
+                    {
+                        "Dimension": dim,
+                        "Relative Error": rel_error,
+                        "Log10 Error": np.log10(rel_error + 1e-20),
+                    }
+                )
 
-                scatter_data['num'].extend(grad_num.tolist())
-                scatter_data['ana'].extend(grad_ana.tolist())
+                scatter_data["num"].extend(grad_num.tolist())
+                scatter_data["ana"].extend(grad_ana.tolist())
 
         return pd.DataFrame(results), pd.DataFrame(scatter_data)
 
-    df_grads, df_scatter = verify_gradients()
 
-    # Save results
-    df_grads.to_csv("data/gradient_verification.csv", index=False)
+    df_grads, df_scatter = verify_gradients()
 
     # Plot Box Plot
     fig2, ax2 = plt.subplots(figsize=(6, 4))
     sns.boxplot(data=df_grads, x="Dimension", y="Log10 Error", ax=ax2)
-    ax2.axhline(np.log10(1e-5), color='r', linestyle='--', label='Threshold ($10^{-5}$)')
+    ax2.axhline(
+        np.log10(1e-5), color="r", linestyle="--", label="Threshold ($10^{-5}$)"
+    )
     ax2.set_title("Gradient Verification: Relative Error Distribution")
     ax2.legend()
     plt.tight_layout()
-    plt.savefig("public/gradient_verification.pdf")
-    # plt.savefig("public/gradient_verification.png")
-    plt.show()
-
-    # Plot Scatter
-    fig3, ax3 = plt.subplots(figsize=(5, 5))
-    # Subsample scatter if too large
-    sub_scatter = df_scatter.sample(n=min(1000, len(df_scatter))) if len(df_scatter) > 1000 else df_scatter
-    ax3.scatter(sub_scatter['num'], sub_scatter['ana'], alpha=0.5, s=10)
-
-    # Diagonal line
-    lims = [
-        np.min([ax3.get_xlim(), ax3.get_ylim()]),  # min of both axes
-        np.max([ax3.get_xlim(), ax3.get_ylim()]),  # max of both axes
-    ]
-    ax3.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
-    ax3.set_xlabel("Numerical Gradient")
-    ax3.set_ylabel("Analytical Gradient")
-    ax3.set_title("Gradient Alignment")
-    plt.tight_layout()
-    plt.savefig("public/gradient_verification.png")
-    plt.savefig("public/gradient_scatter.png")
+    plt.savefig("gradient_verification.pdf")
     plt.show()
     return
-
-
-@app.cell
-def _(mo):
-    return mo.image(src="public/gradient_verification.png")
-
-
-@app.cell
-def _(mo):
-    return mo.image(src="public/gradient_scatter.png")
 
 
 if __name__ == "__main__":

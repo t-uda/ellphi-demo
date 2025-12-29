@@ -11,21 +11,21 @@ Notebooks are separated from the main library to avoid repository bloat.
 - **marimo (`.py`)**: For reactive, state-consistent, and LLM-friendly notebook development. **New notebooks are encouraged to use marimo.**
 
 ## Setup
-Ensure you have [Poetry](https://python-poetry.org/) installed.
+Ensure you have [uv](https://github.com/astral-sh/uv) installed.
 
 ```bash
 # Install dependencies
-poetry install
+uv sync
 ```
 
 ## Usage
 ### Running marimo
 ```bash
-poetry run marimo edit notebooks/your_notebook.py
+uv run marimo edit notebooks/your_notebook.py
 ```
 
 ### Running Jupyter
 ```bash
-poetry run jupyter lab
+uv run jupyter lab
 ```
 
