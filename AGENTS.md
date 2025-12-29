@@ -43,7 +43,7 @@ uv run marimo edit
 ### Matplotlib Cache & Display
 - **Problem**: `MPLCONFIGDIR` warnings or figures not appearing in notebooks.
 - **Prevention**: 
-  1. Set `os.environ['MPLCONFIGDIR']` to `.cache/matplotlib` **before** importing pyplot.
+  1. **Use `.env` file**: Create a `.env` file in the project root with `MPLCONFIGDIR=.cache/matplotlib`. `uv run` will automatically load this.
   2. **Call `plt.show()`**: To ensure figures are captured and displayed in the notebook, always call `plt.show()` at the end of the plotting cell.
 
 ### Marimo Export & GitHub Rendering

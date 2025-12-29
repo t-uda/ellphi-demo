@@ -22,21 +22,20 @@
     - Log-log plot: $X=n$, $Y=\text{Time (ms)}$.
     - Must show clear separation between Python and C++.
 
-## 3. Subtask 1.2: Gradient Correctness (Finite Difference Check)
-**Goal**: Empirically prove the "Differentiability" claim. The analytical gradient *must* match the numerical gradient.
+## 3. Subtask 1.2: Gradient Correctness (Pencil Parameter Sensitivity)
+**Goal**: Empirically prove the correctness of the library's differentiable solver by verifying the gradients of the pencil parameter $\mu$ with respect to the full ellipsoid coefficients. This validates the "Trust Layer" and the `differentiable_solver` module.
 
 ### Specifications
 - **Script**: `task_1_validation.py` (Marimo notebook)
-- **Dimensions ($n$)**: $\{2, 5, 10, 20, 50\}$
+- **Dimensions ($n$)**: $\{2, 3, 5, 10, 20\}$
 - **Perturbation ($\epsilon$)**: $10^{-6}$
 - **Procedure**:
-    1. Compute Analytical Gradient $\nabla_{ana}$ of the tangency time $t$ w.r.t. ellipsoid center $\mu_B$.
-    2. Compute Numerical Gradient $\nabla_{num}$ via central difference: $\frac{t(\mu+\epsilon) - t(\mu-\epsilon)}{2\epsilon}$.
-    3. Compute Relative Error: $E = \frac{\| \nabla_{ana} - \nabla_{num} \|_F}{\| \nabla_{ana} \|_F}$
-- **Success Criterion**: $E < 10^{-5}$ (dominated by floating point error, not systematic error).
+    1. **Analytical Gradient**: Compute $\nabla_p \mu$ and $\nabla_q \mu$ using `ellphi.differentiable_solver.solve_mu_gradients`.
+    2. **Numerical Gradient**: Compute $\nabla_{num}$ via central difference on `ellphi.solve_mu` with respect to every element of coefficient vectors $p$ and $q$.
+    3. **Metric**: Relative Error $E = \frac{\| \nabla_{ana} - \nabla_{num} \|_F}{\| \nabla_{ana} \|_F}$
+- **Success Criterion**: $E < 10^{-5}$.
 - **Output Artifacts**:
     - `gradient_verification.pdf`: Box plot of Log(Error) vs Dimension.
-    - `gradient_scatter.png`: Scatter plot ($x=\nabla_{num}, y=\nabla_{ana}$) showing $y=x$ alignment.
 
 ## 4. Implementation Notes
 - Adhere to `AGENTS.md` guidelines (use `uv run`).

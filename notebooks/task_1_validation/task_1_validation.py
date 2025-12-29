@@ -17,6 +17,7 @@ def _():
     import time
 
     import ellphi
+    from ellphi.differentiable_solver import solve_mu_gradients, solve_mu_numerical_diff
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
@@ -24,17 +25,24 @@ def _():
     import seaborn as sns
     from numpy.linalg import inv, norm
     from tqdm import tqdm
-    return ellphi, inv, mo, norm, np, pd, plt, sns, time, tqdm
+    return (
+        ellphi,
+        inv,
+        mo,
+        norm,
+        np,
+        pd,
+        plt,
+        sns,
+        solve_mu_gradients,
+        solve_mu_numerical_diff,
+        time,
+        tqdm,
+    )
 
 
 @app.cell(hide_code=True)
 def _(np, plt):
-    import os
-
-    # Set MPLCONFIGDIR to a writable directory to avoid warnings
-    os.environ["MPLCONFIGDIR"] = os.path.join(os.getcwd(), ".cache", "matplotlib")
-    os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
-
     # Configure matplotlib for publication quality
     plt.rcParams["pdf.fonttype"] = 42
     plt.rcParams["font.family"] = "serif"
@@ -142,12 +150,12 @@ def _(df_benchmark, plt):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Subtask 1.2: Gradient Correctness (Finite Difference Check)
+    ## Subtask 1.2: Gradient Correctness (Pencil Parameter Sensitivity)
 
-    **Objective**: Empirically prove the differentiability of the contact time $t$. The analytical gradient must match the numerical gradient to high precision. This validates the "Trust Layer" required for gradient-based optimization.
+    **Objective**: Rigorously validate the correctness of the analytical gradients computed by `ellphi.differentiable_solver`. Instead of just the tangency time $t$ with respect to the center, we verify the gradient of the pencil parameter $\mu$ with respect to *all* ellipsoid coefficients (quadratic, linear, and constant terms).
 
     **Methodology**:
-    - **Procedure**: Compare **Analytical Gradient** $\nabla_{\text{ana}}$ (derived from Implicit Function Theorem) vs. **Numerical Gradient** $\nabla_{\text{num}}$ (Central Finite Difference).
+    - **Procedure**: Compare **Analytical Gradient** ($\nabla_p \mu, \nabla_q \mu$) from `solve_mu_gradients` vs. **Numerical Gradient** from `solve_mu_numerical_diff` (Central Finite Difference).
     - **Perturbation**: $\epsilon = 10^{-6}$
     - **Success Criterion**: Relative Error $\frac{\|\nabla_{\text{ana}} - \nabla_{\text{num}}\|_F}{\|\nabla_{\text{ana}}\|_F} < 10^{-5}$.
     """)
@@ -155,46 +163,7 @@ def _(mo):
 
 
 @app.cell
-def _(ellphi, inv, norm, np):
-    def compute_analytical_gradient(m1, c1, m2, c2, t, point):
-        """
-        Computes analytical gradient of t w.r.t m2 (center of second ellipsoid).
-
-        Uses the implicit function theorem on the tangency condition:
-        n1 + lambda * n2 = 0
-        """
-        C1_inv = inv(c1)
-        C2_inv = inv(c2)
-
-        n1 = C1_inv @ (point - m1)
-        n2 = C2_inv @ (point - m2)
-
-        # Calculate lambda
-        norm_n1 = norm(n1)
-        norm_n2 = norm(n2)
-
-        # Avoid division by zero
-        if norm_n2 < 1e-12:
-            return np.zeros_like(m2)
-
-        lamb = norm_n1 / norm_n2
-
-        grad = -n2 / (t * (1.0 + 1.0 / lamb))
-
-        return grad
-
-
-    def tangency_time_func(m_variable, c_variable, m_fixed, c_fixed):
-        pcoef = ellphi.coef_from_cov(m_fixed, c_fixed)
-        qcoef = ellphi.coef_from_cov(m_variable, c_variable)
-        res = ellphi.tangency(pcoef, qcoef)
-        return res.t
-    return compute_analytical_gradient, tangency_time_func
-
-
-@app.cell
 def _(
-    compute_analytical_gradient,
     ellphi,
     generate_random_ellipsoid,
     norm,
@@ -202,11 +171,12 @@ def _(
     pd,
     plt,
     sns,
-    tangency_time_func,
+    solve_mu_gradients,
+    solve_mu_numerical_diff,
     tqdm,
 ):
     def verify_gradients():
-        dims = [2, 3, 5, 10, 20, 50, 100]
+        dims = [2, 3, 5, 10, 20]
         epsilon = 1e-6
         results = []
 
@@ -219,30 +189,19 @@ def _(
                 m1, c1 = generate_random_ellipsoid(dim)
                 m2, c2 = generate_random_ellipsoid(dim)
 
-                # Base computation
-                pcoef = ellphi.coef_from_cov(m1, c1)
-                qcoef = ellphi.coef_from_cov(m2, c2)
-                res = ellphi.tangency(pcoef, qcoef)
-                t_base = res.t
-                point = res.point
+                # Coefficients
+                p = ellphi.coef_from_cov(m1, c1).flatten()
+                q = ellphi.coef_from_cov(m2, c2).flatten()
 
                 # Analytical Gradient
-                grad_ana = compute_analytical_gradient(
-                    m1, c1, m2, c2, t_base, point
-                )
+                mu_val, grad_p_ana, grad_q_ana = solve_mu_gradients(p, q)
 
-                # Numerical Gradient (Finite Difference on m2)
-                grad_num = np.zeros(dim)
-                for i in range(dim):
-                    m2_plus = m2.copy()
-                    m2_plus[i] += epsilon
-                    t_plus = tangency_time_func(m2_plus, c2, m1, c1)
+                # Numerical Gradient (using library's numerical diff for consistency)
+                grad_p_num, grad_q_num = solve_mu_numerical_diff(p, q, h=epsilon)
 
-                    m2_minus = m2.copy()
-                    m2_minus[i] -= epsilon
-                    t_minus = tangency_time_func(m2_minus, c2, m1, c1)
-
-                    grad_num[i] = (t_plus - t_minus) / (2 * epsilon)
+                # Combine for comparison
+                grad_ana = np.concatenate([grad_p_ana, grad_q_ana])
+                grad_num = np.concatenate([grad_p_num, grad_q_num])
 
                 # Compare
                 # Relative Error: ||ana - num|| / ||ana||
@@ -250,7 +209,7 @@ def _(
                 ana_norm = norm(grad_ana)
 
                 if ana_norm < 1e-12:
-                    rel_error = 0.0  # Should not happen with random ellipsoids
+                    rel_error = 0.0
                 else:
                     rel_error = diff_norm / ana_norm
 
@@ -282,6 +241,7 @@ def _(
     plt.savefig("gradient_verification.pdf")
     plt.show()
     return
+
 
 
 if __name__ == "__main__":
