@@ -22,8 +22,12 @@ def _():
     plt.rcParams['font.family'] = 'serif'
 
     # Ensure output directories exist
+    import os
     os.makedirs("experiments/apct_2025/validation/figs", exist_ok=True)
     os.makedirs("experiments/apct_2025/validation/data", exist_ok=True)
+
+    # Set random seed for reproducibility
+    np.random.seed(42)
 
     mo.md("# Task 1: Computational & Mathematical Validation")
     return ellphi, inv, mo, norm, np, pd, plt, sns, time, tqdm
@@ -43,7 +47,18 @@ def _(np):
 
 @app.cell
 def _(ellphi, generate_random_ellipsoid, mo, pd, time, tqdm):
-    mo.md("## Subtask 1.1: Scalability Benchmark")
+    mo.md(
+        r"""
+        ## Subtask 1.1: Scalability Benchmark
+
+        **Objective**: Quantify the computational cost of the tangency solver as a function of dimension $n$ and verify the performance gain of the C++ backend.
+
+        **Methodology**:
+        - **Dimensions**: $n \in \{2, 3, 5, 10, 20, 50, 100\}$
+        - **Sample Size**: 1,000 random ellipsoid pairs per dimension.
+        - **Backends**: Comparison between Pure Python and C++ Extension (if available).
+        """
+    )
 
     def run_benchmark():
         dims = [2, 3, 5, 10, 20, 50, 100]
@@ -89,7 +104,7 @@ def _(ellphi, generate_random_ellipsoid, mo, pd, time, tqdm):
 
 
 @app.cell
-def _(df_benchmark, mo, plt):
+def _(df_benchmark, plt):
     # Plotting Subtask 1.1
     fig1, ax1 = plt.subplots(figsize=(6, 4))
 
@@ -106,14 +121,31 @@ def _(df_benchmark, mo, plt):
     plt.tight_layout()
     plt.savefig("experiments/apct_2025/validation/figs/scaling_benchmark.pdf")
 
-    mo.md(f"### Benchmark Results\nSaved to `experiments/apct_2025/validation/figs/scaling_benchmark.pdf`")
+    return (fig1,)
+
+
+@app.cell
+def _(fig1, mo):
+    mo.md(f"""
+    ### Benchmark Results
+    Saved to `experiments/apct_2025/validation/figs/scaling_benchmark.pdf`
+
+    {mo.as_html(fig1)}
+    """)
     return
 
 
 @app.cell
 def _(mo):
-    mo.md("""
-    ## Subtask 1.2: Gradient Correctness
+    mo.md(r"""
+    ## Subtask 1.2: Gradient Correctness (Finite Difference Check)
+
+    **Objective**: Empirically prove the differentiability of the contact time $t$. The analytical gradient must match the numerical gradient to high precision. This validates the "Trust Layer" required for gradient-based optimization.
+
+    **Methodology**:
+    - **Procedure**: Compare **Analytical Gradient** $\nabla_{\text{ana}}$ (derived from Implicit Function Theorem) vs. **Numerical Gradient** $\nabla_{\text{num}}$ (Central Finite Difference).
+    - **Perturbation**: $\epsilon = 10^{-6}$
+    - **Success Criterion**: Relative Error $\frac{\|\nabla_{\text{ana}} - \nabla_{\text{num}}\|_F}{\|\nabla_{\text{ana}}\|_F} < 10^{-5}$.
     """)
     return
 
@@ -162,7 +194,6 @@ def _(
     compute_analytical_gradient,
     ellphi,
     generate_random_ellipsoid,
-    mo,
     norm,
     np,
     pd,
@@ -261,8 +292,17 @@ def _(
     plt.tight_layout()
     plt.savefig("experiments/apct_2025/validation/figs/gradient_scatter.png")
 
-    mo.md("### Gradient Verification Results\nSaved plots to `experiments/apct_2025/validation/figs/`")
+    return fig2, fig3
 
+
+@app.cell
+def _(fig2, fig3, mo):
+    mo.md(f"""
+    ### Gradient Verification Results
+    Saved plots to `experiments/apct_2025/validation/figs/`
+
+    {mo.hstack([fig2, fig3], justify="start")}
+    """)
     return
 
 
