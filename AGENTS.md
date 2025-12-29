@@ -21,8 +21,9 @@ Move Jupyter notebooks here from the `ellphi` repository to keep the core librar
 - **Documentation**: Keep this `AGENTS.md` updated with any new project-specific rules or setup steps.
 - **Repository Layout**:
   - `notebooks/`: For Jupyter and marimo notebooks.
-  - `docs/`: Documentation and research notes.
-  - `data/`: (If needed) Small datasets for demos. Large files should be handled via Git LFS or external storage.
+  - `specs/`: Internal specifications and research notes.
+  - `docs/`: GitHub Pages public reports and documentation.
+  - `data/`: (If needed) Small datasets for demos.
 
 ## Development Setup
 ```bash

@@ -161,9 +161,8 @@ def _(fig1, mo):
 
 
 @app.cell
-def _(IPython, fig1):
-    IPython.display.display(IPython.display.Image(filename="experiments/apct_2025/validation/figs/scaling_benchmark.png"))
-    return
+def _(fig1):
+    return fig1
 
 
 
@@ -364,15 +363,14 @@ def _(fig2, fig3, mo):
 
 
 @app.cell
-def _(IPython, fig2):
-    IPython.display.display(IPython.display.Image(filename="experiments/apct_2025/validation/figs/gradient_verification.png"))
-    return
+def _(fig2):
+    return fig2
 
 
 @app.cell
-def _(IPython, fig3):
-    IPython.display.display(IPython.display.Image(filename="experiments/apct_2025/validation/figs/gradient_scatter.png"))
-    return
+def _(fig3):
+    return fig3
+
 
 
 
