@@ -21,8 +21,11 @@ Move Jupyter notebooks here from the `ellphi` repository to keep the core librar
 - **Serena files**: Track `.serena/project.yml`; keep `.serena/cache/` and `.serena/memories/` ignored.
 - **Documentation**: Keep this `AGENTS.md` updated with any new project-specific rules or setup steps.
 - **Repository Layout**:
-  - `notebooks/`: Contains demonstration projects.
-    - Each demo resides in its own subdirectory (e.g., `notebooks/demo_name/`).
+  - `notebooks/`: Contains demonstration projects and experiments.
+    - Each task resides in its own subdirectory (e.g., `notebooks/task_1_validation/`).
+    - **Structure**:
+      - `task_name.py`: Main marimo notebook.
+      - Generated artifacts (plots, etc.) are saved directly in the task directory and are ignored by git.
   - `specs/`: Internal specifications and research notes.
   - `docs/`: GitHub Pages public reports and documentation.
 
@@ -44,7 +47,10 @@ uv run marimo edit
   2. **Call `plt.show()`**: To ensure figures are captured and displayed in the notebook, always call `plt.show()` at the end of the plotting cell.
 
 ### Marimo Export & GitHub Rendering
-- **Exporting with Outputs**: When exporting to a HTML format, always use the `-f` (force) flag:
+- **Problem**: Figures may not be captured in exports if not explicitly shown or if GitHub's static viewer cannot render marimo's custom tags.
+- **Prevention**: 
+  1. **Call `plt.show()`**: Always call `plt.show()` to ensure figures are captured in the notebook state.
+  2. **Exporting with Outputs**: When exporting to a HTML format, always use the `-f` (force) flag:
      ```bash
      uv run marimo export html demo.py -o demo.html -f
      ```
