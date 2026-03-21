@@ -5,7 +5,7 @@ description = "Demonstration notebooks for EllPHi"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "ellphi==0.1.1",
+    "ellphi==0.1.2.dev0",
     "marimo>=0.10.0",
     "jupyterlab>=4.1",
     "ipykernel>=6.28",
@@ -20,6 +20,14 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+explicit = true
+
+[tool.uv.sources]
+ellphi = { index = "testpypi" }
 
 [dependency-groups]
 dev = [
