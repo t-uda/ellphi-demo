@@ -18,6 +18,7 @@ def _():
 
     import ellphi
     from ellphi.differentiable_solver import solve_mu_gradients, solve_mu_numerical_diff
+    from ellphi.grad import tangency_grad
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
@@ -27,7 +28,6 @@ def _():
     from tqdm import tqdm
     return (
         ellphi,
-        inv,
         mo,
         norm,
         np,
@@ -36,6 +36,7 @@ def _():
         sns,
         solve_mu_gradients,
         solve_mu_numerical_diff,
+        tangency_grad,
         time,
         tqdm,
     )
@@ -49,7 +50,6 @@ def _(np, plt):
 
     # Set random seed for reproducibility
     np.random.seed(42)
-
 
     return
 
@@ -242,6 +242,101 @@ def _(
     plt.show()
     return
 
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Subtask 1.3: Tangency Distance Gradient via `ellphi.grad`
+
+    **Objective**: Validate the high-level `tangency_grad` API (new in 0.1.2) which directly returns $\partial t / \partial p$ and $\partial t / \partial q$ without requiring manual chain-rule computation through the pencil parameter $\mu$.
+
+    **Methodology**:
+    - **Procedure**: Compare `tangency_grad(p, q).dt_dp` and `.dt_dq` against central finite differences of `tangency(p, q).t`.
+    - **Perturbation**: $\epsilon = 10^{-7}$
+    - **Success Criterion**: Relative Error $< 10^{-5}$.
+    """)
+    return
+
+
+@app.cell
+def _(
+    ellphi,
+    generate_random_ellipsoid,
+    norm,
+    np,
+    pd,
+    plt,
+    sns,
+    tangency_grad,
+    tqdm,
+):
+    def verify_tangency_grad():
+        dims = [2, 3, 5, 10, 20]
+        epsilon = 1e-7
+        results_tg = []
+
+        for dim in tqdm(dims, desc="Verifying tangency_grad"):
+            for _ in range(10):
+                m1, c1 = generate_random_ellipsoid(dim)
+                m2, c2 = generate_random_ellipsoid(dim)
+
+                p = ellphi.coef_from_cov(m1, c1).flatten()
+                q = ellphi.coef_from_cov(m2, c2).flatten()
+
+                # Analytical gradient via tangency_grad
+                g = tangency_grad(p, q)
+
+                # Numerical gradient via central finite differences on t
+                dt_dp_num = np.empty_like(p)
+                for i in range(len(p)):
+                    p_plus = p.copy()
+                    p_plus[i] += epsilon
+                    p_minus = p.copy()
+                    p_minus[i] -= epsilon
+                    dt_dp_num[i] = (
+                        ellphi.tangency(p_plus, q).t - ellphi.tangency(p_minus, q).t
+                    ) / (2 * epsilon)
+
+                dt_dq_num = np.empty_like(q)
+                for i in range(len(q)):
+                    q_plus = q.copy()
+                    q_plus[i] += epsilon
+                    q_minus = q.copy()
+                    q_minus[i] -= epsilon
+                    dt_dq_num[i] = (
+                        ellphi.tangency(p, q_plus).t - ellphi.tangency(p, q_minus).t
+                    ) / (2 * epsilon)
+
+                grad_ana = np.concatenate([g.dt_dp, g.dt_dq])
+                grad_num = np.concatenate([dt_dp_num, dt_dq_num])
+
+                diff_norm = norm(grad_ana - grad_num)
+                ana_norm = norm(grad_ana)
+                rel_error = diff_norm / ana_norm if ana_norm > 1e-12 else 0.0
+
+                results_tg.append(
+                    {
+                        "Dimension": dim,
+                        "Relative Error": rel_error,
+                        "Log10 Error": np.log10(rel_error + 1e-20),
+                    }
+                )
+
+        return pd.DataFrame(results_tg)
+
+    df_tgrad = verify_tangency_grad()
+
+    fig3, ax3 = plt.subplots(figsize=(6, 4))
+    sns.boxplot(data=df_tgrad, x="Dimension", y="Log10 Error", ax=ax3)
+    ax3.axhline(
+        np.log10(1e-5), color="r", linestyle="--", label="Threshold ($10^{-5}$)"
+    )
+    ax3.set_title("tangency_grad Verification: $\\partial t / \\partial (p, q)$")
+    ax3.legend()
+    plt.tight_layout()
+    plt.savefig("tangency_grad_verification.pdf")
+    plt.show()
+    return
 
 
 if __name__ == "__main__":
