@@ -30,9 +30,9 @@ explicit = true
 ellphi = { index = "testpypi" }
 
 [dependency-groups]
-dev = [
-    "ruff",
-]
+dev = ["ruff"]
+torch = ["torch>=2.0"]
+jax = ["jax[cpu]>=0.4"]
 
 [build-system]
 requires = ["hatchling"]
