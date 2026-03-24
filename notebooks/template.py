@@ -7,8 +7,10 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import marimo as mo
+
     try:
         import ellphi
+
         ellphi_available = True
     except ImportError:
         ellphi_available = False

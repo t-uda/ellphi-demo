@@ -708,7 +708,7 @@ wheels = [
 
 [[package]]
 name = "ellphi"
-version = "0.1.2.dev0"
+version = "0.1.2.dev1"
 source = { registry = "https://test.pypi.org/simple/" }
 dependencies = [
     { name = "joblib" },
@@ -718,12 +718,12 @@ dependencies = [
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
-sdist = { url = "https://test-files.pythonhosted.org/packages/1f/aa/a86314872322e10c48c0ea90832d9c1302261b7cf5d53e5529c8059031bb/ellphi-0.1.2.dev0.tar.gz", hash = "sha256:672faa0ae008db779ec1880b9df067f0651f6e07af4315d4904bd31344a19886", size = 39625, upload-time = "2026-03-21T06:46:31.426Z" }
+sdist = { url = "https://test-files.pythonhosted.org/packages/2d/57/eace172f5e6f7aca5db2ba7fb3f9a2315899ad99bac7113adab502123612/ellphi-0.1.2.dev1.tar.gz", hash = "sha256:1b5f3546712c64508a73b662dd6f8c5f0a4deb7b214b8912ca79fbf159849293", size = 40851, upload-time = "2026-03-23T15:14:00.129Z" }
 wheels = [
-    { url = "https://test-files.pythonhosted.org/packages/d2/68/fe5e06fe36af39a50d9078ccb794d3a7b5eaf0167da8dd98e01e4301dced/ellphi-0.1.2.dev0-cp310-cp310-win_amd64.whl", hash = "sha256:5effa0ff86ecbbcc1548446895edbad76f372b4c9c7c2c864af2bba24744c576", size = 50182, upload-time = "2026-03-21T06:46:25.482Z" },
-    { url = "https://test-files.pythonhosted.org/packages/c0/4c/ffbf3f2e225898c3afa9e6bac3c79b348f7273aa90dcec449b808afc4a3d/ellphi-0.1.2.dev0-cp311-cp311-win_amd64.whl", hash = "sha256:cd235c1bfcca433faebe1c489206ff66dfd66c99a76ad53696450500dc12f182", size = 50181, upload-time = "2026-03-21T06:46:27.399Z" },
-    { url = "https://test-files.pythonhosted.org/packages/c4/45/4212a55c1d8e6e427539cda8975adb29beaa5ba7c8db31b14e01659c3d16/ellphi-0.1.2.dev0-cp312-cp312-manylinux_2_39_x86_64.whl", hash = "sha256:59db8bff5f80b8ce93f90f6c3253cf656bb1b911983ac29291e5392ba0b5ac97", size = 1109975, upload-time = "2026-03-21T06:46:28.794Z" },
-    { url = "https://test-files.pythonhosted.org/packages/97/a0/0a422cd51f3079e75e99aba8ac112e0cd5c0fc19b67b6a902fd0636d31d9/ellphi-0.1.2.dev0-cp312-cp312-win_amd64.whl", hash = "sha256:abdfd77f0c404689f157e6da9f7ba39a9065bded83db63889b73136adba0404f", size = 50183, upload-time = "2026-03-21T06:46:30.401Z" },
+    { url = "https://test-files.pythonhosted.org/packages/75/eb/0a94e23d53109e17ab2d7ba2945a878b5ab523c6fdbcb0416cb69575e6de/ellphi-0.1.2.dev1-cp310-cp310-win_amd64.whl", hash = "sha256:ab9ca342a94b8fba0e1012aaf764dda85b7002069fd2a2ae685d329cb00ef8c4", size = 51626, upload-time = "2026-03-23T15:13:54.953Z" },
+    { url = "https://test-files.pythonhosted.org/packages/f9/ca/40a9a6241878fbb2ca69bea1c216340e22937e25cfbdf6776b0dca622fe2/ellphi-0.1.2.dev1-cp311-cp311-win_amd64.whl", hash = "sha256:974d4decef902c19162f04f7ce0f4032b39ef4d7c95f7de7cb916b9d59277c97", size = 51625, upload-time = "2026-03-23T15:13:56.333Z" },
+    { url = "https://test-files.pythonhosted.org/packages/15/60/aa1dcccf2464f8ca9282f00507a4c022cdca55f764d8ef1d6c8eed3ed8ca/ellphi-0.1.2.dev1-cp312-cp312-manylinux_2_39_x86_64.whl", hash = "sha256:7f1a9e1f8938acb5e39410f7ad6001667f80668c85f3b7c5baa3d0e830c027c7", size = 1111410, upload-time = "2026-03-23T15:13:57.756Z" },
+    { url = "https://test-files.pythonhosted.org/packages/4a/73/be5fbe9a2593fa213206ab5a82883da232b837a38c15c67709c07e3aca73/ellphi-0.1.2.dev1-cp312-cp312-win_amd64.whl", hash = "sha256:9feccf24ac17fee13cf982b109474e034786476317a5b28ff44ae8046060442c", size = 51629, upload-time = "2026-03-23T15:13:58.977Z" },
 ]
 
 [[package]]
@@ -752,7 +752,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ellphi", specifier = "==0.1.2.dev0", index = "https://test.pypi.org/simple/" },
+    { name = "ellphi", specifier = "==0.1.2.dev1", index = "https://test.pypi.org/simple/" },
     { name = "homcloud", specifier = ">=4.8.0,<5.0.0" },
     { name = "ipykernel", specifier = ">=6.28" },
     { name = "jupyterlab", specifier = ">=4.1" },

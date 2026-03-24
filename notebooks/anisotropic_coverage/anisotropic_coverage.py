@@ -12,7 +12,7 @@ def _():
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
-    from ellphi.grad import pdist_tangency_grad
+    from ellphi.grad import coef_from_cov_grad, pdist_tangency_grad
     from matplotlib.patches import Ellipse
     from ripser import ripser
     from scipy.optimize import minimize
@@ -21,6 +21,7 @@ def _():
     nb_dir = Path(__file__).resolve().parent
     return (
         Ellipse,
+        coef_from_cov_grad,
         ellphi,
         minimize,
         mo,
@@ -39,11 +40,11 @@ def _(mo):
     # Anisotropic Sensor Coverage Optimization
 
     This notebook demonstrates that **anisotropic** (ellipsoidal) sensors can
-    achieve full coverage (H1 = 0) where **isotropic** (circular) sensors of
-    the same area cannot.
+    achieve significantly lower H1 persistence than **isotropic** (circular)
+    sensors of the same area.
 
     We optimize sensor **positions and orientations** to **minimize** H1 total
-    persistence (eliminate coverage holes in the tangency-based Rips filtration).
+    persistence (reduce coverage holes in the tangency-based Rips filtration).
     Anisotropic sensors have **3N** degrees of freedom (x, y, θ per sensor)
     while isotropic sensors have only **2N** (x, y). The extra rotational
     freedom lets elongated ellipses bridge gaps that circles cannot.
@@ -65,7 +66,7 @@ def _(plt):
 @app.cell
 def _(np):
     # --- Configuration ---
-    N_SENSORS = 30  # mobile sensors to optimize
+    N_SENSORS = 20  # mobile sensors to optimize
     R_MAJOR = 0.20  # semi-major axis (fixed during optimization)
     R_MINOR = 0.10  # semi-minor axis (fixed during optimization)
     R_ISO = np.sqrt(R_MAJOR * R_MINOR)  # equal-area circle radius
@@ -77,9 +78,9 @@ def _(np):
     R_WALL_MINOR = 0.02  # wall semi-minor (thin)
 
     # Optimization
-    N_RESTARTS = 1
-    MAXITER_WARMUP = 3
-    MAXITER = 30
+    N_RESTARTS = 2
+    MAXITER_WARMUP = 50
+    MAXITER = 150
     return (
         MAXITER,
         MAXITER_WARMUP,
@@ -185,12 +186,14 @@ def _(
     SEED,
     build_covs,
     build_wall_coefs,
-    ellphi,
+    coef_from_cov_grad,
     h1_total_persistence,
     minimize,
     mo,
     np,
     pdist_tangency_grad,
+    ripser,
+    squareform,
 ):
     def _pack(centers, thetas):
         """Pack centers (N,2) and thetas (N,) into [x0,y0,t0, x1,y1,t1, ...]."""
@@ -225,90 +228,97 @@ def _(
     _wall_coefs, _n_wall = build_wall_coefs()
 
     def _loss_and_grad_aniso(x, r0, r1):
-        """Tangency-distance loss and gradient via pdist_tangency_grad + VJP.
+        """H1 total persistence loss and gradient via analytical VJP.
 
-        Wall ellipses are prepended to the coefficient array. The VJP result
-        is sliced to extract only the mobile-sensor gradients (index n_wall:).
+        Uses coef_from_cov_grad + pdist_tangency_grad for the full chain,
+        with analytical dCov/dθ for the rotation parameters.
         """
         centers, thetas = _unpack(x)
         covs = build_covs(thetas, r0, r1)
-        mobile_coefs = ellphi.coef_from_cov(centers, covs)
-        coefs_all = np.vstack([_wall_coefs, mobile_coefs])
 
         try:
-            dists, vjp = pdist_tangency_grad(coefs_all)
+            coefs, vjp_coef = coef_from_cov_grad(centers, covs)
+            coefs_all = np.vstack([_wall_coefs, coefs])
+            dists, vjp_dist = pdist_tangency_grad(coefs_all)
         except (RuntimeError, ZeroDivisionError):
+            return 1e6, np.zeros_like(x)
+
+        # H1 total persistence as loss
+        dm = squareform(dists)
+        result = ripser(dm, maxdim=1, distance_matrix=True)
+        dgm = result["dgms"][1]
+        finite = dgm[np.isfinite(dgm[:, 1])] if len(dgm) > 0 else dgm
+        if len(finite) == 0:
             return 0.0, np.zeros_like(x)
 
-        loss = dists.sum()
-        grad_dists = np.ones_like(dists)
-        grad_coefs_all = vjp(grad_dists)
-        # Only mobile sensors contribute to the gradient
-        grad_coefs = grad_coefs_all[_n_wall:]
+        loss = float(np.sum(finite[:, 1] - finite[:, 0]))
 
-        # Chain rule: grad_coefs → grad_params via central finite differences
+        # Subgradient: identify birth/death edges in condensed dists
+        grad_dists = np.zeros_like(dists)
+        for b, d in finite:
+            grad_dists[np.argmin(np.abs(dists - b))] -= 1.0
+            grad_dists[np.argmin(np.abs(dists - d))] += 1.0
+
+        # Chain backward through VJPs
+        grad_coefs_all = vjp_dist(grad_dists)
+        grad_centers, grad_covs = vjp_coef(grad_coefs_all[_n_wall:])
+
+        # Analytical dCov/dθ chain rule (d=2 only)
+        grad_thetas = np.zeros(len(thetas))
+        D = np.diag([r0**2, r1**2])
+        for i, theta in enumerate(thetas):
+            c, s = np.cos(theta), np.sin(theta)
+            Rp = np.array([[-s, -c], [c, -s]])  # dR/dθ
+            R = np.array([[c, -s], [s, c]])
+            dCov = Rp @ D @ R.T + R @ D @ Rp.T
+            grad_thetas[i] = np.sum(grad_covs[i] * dCov)
+
+        # Pack gradient: [x0,y0,θ0, x1,y1,θ1, ...]
         grad_x = np.zeros_like(x)
-        h = 1e-7
-        for i in range(len(x)):
-            x_plus = x.copy()
-            x_plus[i] += h
-            c_p, t_p = _unpack(x_plus)
-            coefs_p = ellphi.coef_from_cov(c_p, build_covs(t_p, r0, r1))
-
-            x_minus = x.copy()
-            x_minus[i] -= h
-            c_m, t_m = _unpack(x_minus)
-            coefs_m = ellphi.coef_from_cov(c_m, build_covs(t_m, r0, r1))
-
-            dcoefs_di = (coefs_p - coefs_m) / (2.0 * h)
-            grad_x[i] = np.sum(grad_coefs * dcoefs_di)
+        for i in range(len(thetas)):
+            grad_x[3 * i] = grad_centers[i, 0]
+            grad_x[3 * i + 1] = grad_centers[i, 1]
+            grad_x[3 * i + 2] = grad_thetas[i]
 
         return loss, grad_x
 
     def _loss_and_grad_iso(x_flat, r_iso):
-        """Tangency-distance loss and gradient for isotropic (circular) sensors."""
+        """H1 total persistence loss and gradient for isotropic (circular) sensors."""
         centers = _unpack_iso(x_flat)
-        n = len(centers)
-        thetas = np.zeros(n)
+        thetas = np.zeros(len(centers))
         covs = build_covs(thetas, r_iso, r_iso)
-        mobile_coefs = ellphi.coef_from_cov(centers, covs)
-        coefs_all = np.vstack([_wall_coefs, mobile_coefs])
 
         try:
-            dists, vjp = pdist_tangency_grad(coefs_all)
+            coefs, vjp_coef = coef_from_cov_grad(centers, covs)
+            coefs_all = np.vstack([_wall_coefs, coefs])
+            dists, vjp_dist = pdist_tangency_grad(coefs_all)
         except (RuntimeError, ZeroDivisionError):
+            return 1e6, np.zeros_like(x_flat)
+
+        # H1 total persistence as loss
+        dm = squareform(dists)
+        result = ripser(dm, maxdim=1, distance_matrix=True)
+        dgm = result["dgms"][1]
+        finite = dgm[np.isfinite(dgm[:, 1])] if len(dgm) > 0 else dgm
+        if len(finite) == 0:
             return 0.0, np.zeros_like(x_flat)
 
-        loss = dists.sum()
-        grad_dists = np.ones_like(dists)
-        grad_coefs_all = vjp(grad_dists)
-        grad_coefs = grad_coefs_all[_n_wall:]
+        loss = float(np.sum(finite[:, 1] - finite[:, 0]))
 
-        # Chain rule via finite differences on center → coefs
-        grad_x = np.zeros_like(x_flat)
-        h = 1e-7
-        for i in range(len(x_flat)):
-            x_plus = x_flat.copy()
-            x_plus[i] += h
-            coefs_p = ellphi.coef_from_cov(
-                _unpack_iso(x_plus), build_covs(np.zeros(n), r_iso, r_iso)
-            )
+        grad_dists = np.zeros_like(dists)
+        for b, d in finite:
+            grad_dists[np.argmin(np.abs(dists - b))] -= 1.0
+            grad_dists[np.argmin(np.abs(dists - d))] += 1.0
 
-            x_minus = x_flat.copy()
-            x_minus[i] -= h
-            coefs_m = ellphi.coef_from_cov(
-                _unpack_iso(x_minus), build_covs(np.zeros(n), r_iso, r_iso)
-            )
+        grad_coefs_all = vjp_dist(grad_dists)
+        grad_centers, _ = vjp_coef(grad_coefs_all[_n_wall:])
 
-            dcoefs_di = (coefs_p - coefs_m) / (2.0 * h)
-            grad_x[i] = np.sum(grad_coefs * dcoefs_di)
-
-        return loss, grad_x
+        return loss, grad_centers.ravel()
 
     def _run_anisotropic():
-        """Minimize tangency distances over centers + rotations (3N DOF).
+        """Minimize H1 total persistence over centers + rotations (3N DOF).
 
-        Uses L-BFGS-B with gradients from ellphi.grad.pdist_tangency_grad.
+        Uses L-BFGS-B with H1 subgradients via analytical VJP chain.
         Wall ellipses along [0,1]^2 boundary prevent collapse.
         """
         _rng = np.random.RandomState(SEED)
@@ -371,9 +381,9 @@ def _(
         return snapshots
 
     def _run_isotropic():
-        """Minimize tangency distances over centers only (2N DOF).
+        """Minimize H1 total persistence over centers only (2N DOF).
 
-        Uses L-BFGS-B with gradients from ellphi.grad.pdist_tangency_grad.
+        Uses L-BFGS-B with H1 subgradients via analytical VJP chain.
         Same wall ellipses as anisotropic for fair comparison.
         """
         _rng_opt = np.random.RandomState(SEED + 300)
@@ -407,7 +417,7 @@ def _(
     _ratio = aniso_snapshots[-1][1] / max(iso_opt_h1, 1e-10)
     mo.md(
         f"""
-    **Optimization results** (L-BFGS-B with `pdist_tangency_grad` VJP)**:**
+    **Optimization results** (L-BFGS-B with H1 subgradient via analytical VJP)**:**
     - Anisotropic (3N = {3 * N_SENSORS} DOF): H1 = {aniso_snapshots[0][1]:.3f}
       (initial) -> **{aniso_snapshots[-1][1]:.3f}** (optimized)
     - Isotropic (2N = {2 * N_SENSORS} DOF): H1 = **{iso_opt_h1:.3f}** (optimized)
@@ -507,9 +517,7 @@ def _(
     colors_face = ["#4e79a7", "#f28e2b", "#59a14f"]
     colors_edge = ["#2b5c8a", "#c06e1a", "#3d7a34"]
 
-    for idx, (_label, h1_val, centers_snap, thetas_snap) in enumerate(
-        aniso_snapshots
-    ):
+    for idx, (_label, h1_val, centers_snap, thetas_snap) in enumerate(aniso_snapshots):
         ax = axes_aniso[idx]
         _draw_wall(ax)
         _draw_sensors(
@@ -524,7 +532,10 @@ def _(
 
         try:
             dgm = compute_h1(
-                centers_snap, thetas_snap, R_MAJOR, R_MINOR,
+                centers_snap,
+                thetas_snap,
+                R_MAJOR,
+                R_MINOR,
                 wall_coefs=_wall_coefs_viz,
             )
             n_h1 = 0
@@ -550,9 +561,7 @@ def _(
         y=1.02,
     )
     fig_aniso.tight_layout()
-    plt.savefig(
-        nb_dir / "anisotropic_optimization.pdf", bbox_inches="tight", dpi=150
-    )
+    plt.savefig(nb_dir / "anisotropic_optimization.pdf", bbox_inches="tight", dpi=150)
     plt.show()
     return
 
@@ -563,7 +572,7 @@ def _(mo):
     ## Anisotropic vs Isotropic Comparison
 
     Both sensor types have the **same area** per sensor. Both are optimized to
-    **minimize** H1 total persistence (eliminate coverage holes). Anisotropic
+    **minimize** H1 total persistence (reduce coverage holes). Anisotropic
     sensors have 3N degrees of freedom (position + rotation) while isotropic
     sensors have only 2N (position). The extra rotational freedom lets
     elongated ellipses bridge gaps that circles cannot.
@@ -709,7 +718,10 @@ def _(
 
     try:
         dgm_i = compute_h1(
-            iso_opt_centers, np.zeros(N_SENSORS), R_ISO, R_ISO,
+            iso_opt_centers,
+            np.zeros(N_SENSORS),
+            R_ISO,
+            R_ISO,
             wall_coefs=_wall_coefs_cmp,
         )
         h1_i = 0.0
@@ -743,16 +755,13 @@ def _(
     ax_i.tick_params(labelsize=8)
 
     fig_cmp.suptitle(
-        f"Same area per sensor  (r_iso = {R_ISO:.4f},"
-        f" {N_SENSORS} sensors)",
+        f"Same area per sensor  (r_iso = {R_ISO:.4f}, {N_SENSORS} sensors)",
         fontsize=13,
         fontweight="bold",
         y=1.02,
     )
     fig_cmp.tight_layout()
-    plt.savefig(
-        nb_dir / "anisotropic_vs_isotropic.pdf", bbox_inches="tight", dpi=150
-    )
+    plt.savefig(nb_dir / "anisotropic_vs_isotropic.pdf", bbox_inches="tight", dpi=150)
     plt.show()
     return
 

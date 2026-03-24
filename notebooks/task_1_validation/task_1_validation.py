@@ -17,15 +17,16 @@ def _():
     import time
 
     import ellphi
-    from ellphi.differentiable_solver import solve_mu_gradients, solve_mu_numerical_diff
-    from ellphi.grad import tangency_grad
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
     import pandas as pd
     import seaborn as sns
-    from numpy.linalg import inv, norm
+    from ellphi.differentiable_solver import solve_mu_gradients, solve_mu_numerical_diff
+    from ellphi.grad import tangency_grad
+    from numpy.linalg import norm
     from tqdm import tqdm
+
     return (
         ellphi,
         mo,
@@ -63,6 +64,7 @@ def _(np):
         A = np.random.randn(dim, dim)
         cov = A @ A.T + np.eye(dim) * 0.1  # Ensure positive definite
         return mean, cov
+
     return (generate_random_ellipsoid,)
 
 
@@ -225,7 +227,6 @@ def _(
                 scatter_data["ana"].extend(grad_ana.tolist())
 
         return pd.DataFrame(results), pd.DataFrame(scatter_data)
-
 
     df_grads, df_scatter = verify_gradients()
 

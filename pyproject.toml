@@ -5,7 +5,7 @@ description = "Demonstration notebooks for EllPHi"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "ellphi==0.1.2.dev0",
+    "ellphi==0.1.2.dev1",
     "marimo>=0.10.0",
     "jupyterlab>=4.1",
     "ipykernel>=6.28",
