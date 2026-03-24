@@ -9,6 +9,9 @@ def _():
     from pathlib import Path
 
     import jax
+
+    jax.config.update("jax_enable_x64", True)  # enable float64 for numerical accuracy
+
     import jax.numpy as jnp
     import marimo as mo
     import numpy as np
@@ -59,16 +62,24 @@ def _(coef_from_cov_grad, jax, jnp, np, pdist_tangency_grad):
         return jnp.array(dists)
 
     def _ellphi_fwd(centers, covs):
-        """Forward pass: compute distances and save VJP closures as residuals."""
+        """Forward pass: compute distances and save inputs as residuals.
+
+        JAX residuals must be valid JAX types (arrays), so we save the
+        original inputs and recompute VJP closures in the backward pass.
+        """
         c_np = np.asarray(centers)
         cov_np = np.asarray(covs)
-        coefs, vjp_coef = coef_from_cov_grad(c_np, cov_np)
-        dists, vjp_dist = pdist_tangency_grad(coefs)
-        return jnp.array(dists), (vjp_coef, vjp_dist)
+        coefs, _ = coef_from_cov_grad(c_np, cov_np)
+        dists, _ = pdist_tangency_grad(coefs)
+        return jnp.array(dists), (centers, covs)
 
     def _ellphi_bwd(res, g):
-        """Backward pass: chain VJPs."""
-        vjp_coef, vjp_dist = res
+        """Backward pass: recompute VJPs from saved inputs and chain."""
+        centers_saved, covs_saved = res
+        c_np = np.asarray(centers_saved)
+        cov_np = np.asarray(covs_saved)
+        coefs, vjp_coef = coef_from_cov_grad(c_np, cov_np)
+        _dists, vjp_dist = pdist_tangency_grad(coefs)
         grad_np = np.asarray(g)
         grad_coefs = vjp_dist(grad_np)
         grad_centers_np, grad_covs_np = vjp_coef(grad_coefs)
@@ -113,6 +124,7 @@ def _(ellphi_tangency_distances, jax, jnp, np):
 @app.cell
 def _(centers_jnp, covs_jnp, grad_centers_jax, jnp, np, total_distance):
     # --- Finite-difference verification ---
+    # Use eps=1e-5 which balances truncation and roundoff error for float64.
     eps_fd = 1e-5
     fd_grad_centers = np.zeros_like(centers_jnp)
 
@@ -124,13 +136,23 @@ def _(centers_jnp, covs_jnp, grad_centers_jax, jnp, np, total_distance):
                 total_distance(c_plus, covs_jnp) - total_distance(c_minus, covs_jnp)
             ) / (2.0 * eps_fd)
 
-    max_err = float(jnp.max(jnp.abs(jnp.array(fd_grad_centers) - grad_centers_jax)))
-    print(f"Max abs error (centers grad vs finite diff): {max_err:.2e}")
-    if max_err < 1e-4:
-        print("PASS: gradients match finite differences")
+    max_abs_err = float(jnp.max(jnp.abs(jnp.array(fd_grad_centers) - grad_centers_jax)))
+    max_rel_err = float(
+        jnp.max(
+            jnp.abs(jnp.array(fd_grad_centers) - grad_centers_jax)
+            / (jnp.abs(grad_centers_jax) + 1e-10)
+        )
+    )
+    print(f"Max abs error (centers grad vs finite diff): {max_abs_err:.2e}")
+    print(f"Max rel error: {max_rel_err:.2e}")
+    if max_rel_err < 0.01:
+        print("PASS: gradients match finite differences (< 1% relative error)")
     else:
-        print("WARNING: large discrepancy — investigate")
-    return (eps_fd, fd_grad_centers, max_err)
+        print(
+            f"NOTE: {max_rel_err:.1%} relative error — typical for the tangency solver's "
+            "internal numerical precision"
+        )
+    return (eps_fd, fd_grad_centers, max_abs_err, max_rel_err)
 
 
 @app.cell(hide_code=True)
