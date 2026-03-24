@@ -12,15 +12,19 @@ Once `ellphi-demo` is fully operational and the maintenance workflow is establis
     - `[project.optional-dependencies]` -> `demo` section
     - `[tool.poetry.group.demo]`
 - **Goal**: Minimize the footprint of the core library.
+- **Status**: Not done.
 
 ### 2. Consolidate demo dependencies in `ellphi-demo`
 - **Action**: Ensure all analysis/visualization tools are captured here.
 - **Current Stack**: `marimo`, `jupyterlab`, `pandas`, `plotly`, `homcloud`, `seaborn`, `matplotlib`.
 - **Action**: Update the `ellphi` dependency in `pyproject.toml` to point to the newly released version (once bumped).
+- **Package manager**: `uv` (migrated from Poetry).
+- **Status**: Done — `pyproject.toml` uses `uv` with TestPyPI index for ellphi dev releases.
 
-### 3. Notebook Migration Completion
-- **Action**: Move all remaining `.ipynb` files from `ellphi/notebooks` to `ellphi-demo/notebooks`.
+### 3. Notebook Migration from `ellphi` repo
+- **Action**: Move remaining `.ipynb` notebooks from `ellphi/notebooks/` to `ellphi-demo/notebooks/` as marimo `.py` notebooks.
 - **Action**: Update `ellphi`'s `README.md` to point users to this repository for examples.
+- **Status**: Not done — `.ipynb` notebooks still exist in the `ellphi` repository.
 
 ## Timeline
 This plan will be executed simultaneously with the next meaningful version update of `ellphi` to avoid multiple redundant version bumps.

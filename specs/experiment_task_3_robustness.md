@@ -9,7 +9,7 @@
 **Goal**: Show that Anisotropic PH maintains topological features (cycles/components) at higher noise levels than Isotropic PH.
 
 ### Specifications
-- **Script**: `compare_robustness.py`
+- **Notebook**: `notebooks/robustness/robustness.py` (marimo)
 - **Dataset (The "Close Strands" Problem)**:
     - Two parallel line segments or curves in close proximity.
     - Gap size $\delta$.
@@ -25,5 +25,9 @@
     - `figs/robustness_visual.png`: Side-by-side comparison of the filtration/complex at a critical noise level where Isotropic fails but Anisotropic succeeds.
 
 ## 3. Implementation Notes
+- Use `uv run` for all execution.
 - For the "Anisotropic" method here, you can use a heuristic to set the ellipsoids (e.g., PCA on local k-neighbors) rather than full optimization, to separate the "benefit of anisotropy" from the "difficulty of optimization".
-- Explicitly state which method determines the variation (PCA-based vs Optimization-based) in the script comments.
+- Explicitly state which method determines the variation (PCA-based vs Optimization-based) in the notebook comments.
+
+## 4. Status
+**Not started.**

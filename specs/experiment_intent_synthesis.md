@@ -36,9 +36,16 @@ The execution plans are separated into three independent logical units for AI Ag
 1.  **[Task 1] Computational & Mathematical Validation**:
     *   Focus: Scalability, Differentiation Correctness.
     *   Detail: See `experiment_task_1_validation.md`.
+    *   Status: **Done** — `notebooks/task_1_validation/`.
 2.  **[Task 2] Inverse Problem & Optimization Demo**:
     *   Focus: Metric Learning, Gradient Visualization.
     *   Detail: See `experiment_task_2_optimization.md`.
+    *   Status: **Partially done** — a coverage optimization demo exists
+        (`notebooks/anisotropic_coverage/`) that demonstrates gradient-based
+        placement/rotation optimization with H1 subgradients, but the core
+        *inverse problem* (optimizing ellipsoid **shape** to recover latent
+        anisotropy) and gradient field visualization are not yet implemented.
 3.  **[Task 3] Robustness Comparison**:
     *   Focus: Noise tolerance vs Euclidean VR.
     *   Detail: See `experiment_task_3_robustness.md`.
+    *   Status: **Not started**.
