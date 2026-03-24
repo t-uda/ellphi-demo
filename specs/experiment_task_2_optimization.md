@@ -10,7 +10,7 @@
 ## 2. Subtask 2.1: Gradient Field Visualization (Concept Demo)
 **Goal**: Visualize the scalar field of Tangency Time $t$ and its gradient vector field to provide intuition.
 
-**Status**: Not started.
+**Status**: Done.
 
 ### Specifications
 - **Notebook**: `notebooks/gradient_field/gradient_field.py` (marimo)
@@ -44,7 +44,7 @@ This demo optimizes **positions and orientations** with fixed ellipsoid shape (s
 ## 4. Subtask 2.3: The Inverse Problem (Metric Learning)
 **Goal**: Recover the "Stretched" direction of a dataset by optimizing ellipsoid **shapes** (covariance matrices).
 
-**Status**: Not started.
+**Status**: Done.
 
 ### Specifications
 - **Notebook**: `notebooks/inverse_problem/inverse_problem.py` (marimo)
@@ -68,7 +68,7 @@ This demo optimizes **positions and orientations** with fixed ellipsoid shape (s
 ## 5. Subtask 2.4: AD Framework Integration Examples
 **Goal**: Provide examples of wrapping ellphi's VJP into `torch` and `jax` custom ops for end-to-end differentiable pipelines.
 
-**Status**: Not started.
+**Status**: Done.
 
 ### Specifications
 - **torch example**: Wrap `coef_from_cov_grad` + `pdist_tangency_grad` as a `torch.autograd.Function`. Demonstrate backpropagation through tangency distances.
