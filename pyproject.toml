@@ -33,6 +33,7 @@ ellphi = { index = "testpypi" }
 dev = ["ruff"]
 torch = ["torch>=2.0"]
 jax = ["jax[cpu]>=0.4"]
+dti = ["dipy>=1.7.0"]
 
 [build-system]
 requires = ["hatchling"]
