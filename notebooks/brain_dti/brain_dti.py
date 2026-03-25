@@ -97,10 +97,10 @@ def _(mo):
     from dipy.io.image import load_nifti
     from dipy.reconst.dti import TensorModel
 
-    hardi_fname, hardi_bval_fname, hardi_bvec_fname = get_fnames("stanford_hardi")
+    hardi_fname, hardi_bval_fname, hardi_bvec_fname = get_fnames(name="stanford_hardi")
     data, affine = load_nifti(hardi_fname)
     bvals, bvecs = read_bvals_bvecs(hardi_bval_fname, hardi_bvec_fname)
-    gtab = gradient_table(bvals, bvecs)
+    gtab = gradient_table(bvals=bvals, bvecs=bvecs)
 
     tenmodel = TensorModel(gtab)
     tenfit = tenmodel.fit(data)
@@ -229,7 +229,7 @@ def _(cloud, mo, pdist, ripser, squareform):
     dgm_iso = ripser(dm_iso, distance_matrix=True, maxdim=1)["dgms"]
 
     mo.md("**PH computation complete.**")
-    return dgm_aniso, dgm_iso, dm_aniso, dm_iso
+    return dgm_aniso, dgm_iso
 
 
 @app.cell(hide_code=True)
@@ -284,6 +284,7 @@ def _(AXIAL_SLICE, cloud, ellphi, fa_slice, nb_dir, np, plt):
     ax_fa.set_aspect("equal")
     fig_fa.tight_layout()
     fig_fa.savefig(nb_dir / "brain_dti_fa_ellipsoids.pdf", bbox_inches="tight")
+    plt.show()
     fig_fa
     return
 
@@ -378,6 +379,7 @@ def _(dgm_aniso, dgm_iso, nb_dir, np, plt):
     )
     fig_pd.tight_layout()
     fig_pd.savefig(nb_dir / "brain_dti_persistence_comparison.pdf", bbox_inches="tight")
+    plt.show()
     fig_pd
     return
 
@@ -425,73 +427,6 @@ def _(dgm_aniso, dgm_iso, mo, np):
     | H0 max persistence | {h0_pers.max():.2f} | {h0_iso_pers.max():.2f} |
     """
     mo.md(table)
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ### 5.4 H0 Cluster Map
-
-    We extract connected components from the H0 barcode at a persistence
-    threshold and compare anisotropic vs isotropic clustering.
-    Anisotropic clusters should align with anatomically known fiber bundles.
-    """)
-    return
-
-
-@app.cell
-def _(AXIAL_SLICE, cloud, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt):
-    from scipy.cluster.hierarchy import fcluster, linkage
-
-    def _cluster_from_dm(dm, n_clusters):
-        """Single-linkage clustering from a distance matrix."""
-        condensed = dm[np.triu_indices(dm.shape[0], k=1)]
-        Z = linkage(condensed, method="single")
-        labels = fcluster(Z, t=n_clusters, criterion="maxclust")
-        return labels
-
-    N_CLUSTERS = 6
-
-    labels_aniso = _cluster_from_dm(dm_aniso, N_CLUSTERS)
-    labels_iso = _cluster_from_dm(dm_iso, N_CLUSTERS)
-
-    fig_cl, (ax_cl1, ax_cl2) = plt.subplots(1, 2, figsize=(14, 6))
-
-    for ax, labels, title in [
-        (ax_cl1, labels_aniso, "Anisotropic (EllPHi)"),
-        (ax_cl2, labels_iso, "Isotropic (Euclidean)"),
-    ]:
-        ax.imshow(
-            fa_slice.T,
-            cmap="gray",
-            origin="lower",
-            vmin=0,
-            vmax=1,
-            alpha=0.3,
-        )
-        ax.scatter(
-            cloud.mean[:, 0],
-            cloud.mean[:, 1],
-            c=labels,
-            cmap="tab10",
-            s=8,
-            alpha=0.8,
-            zorder=3,
-        )
-        ax.set_title(f"{title} — {N_CLUSTERS} clusters")
-        ax.set_xlabel("x (voxel)")
-        ax.set_ylabel("y (voxel)")
-        ax.set_aspect("equal")
-
-    fig_cl.suptitle(
-        f"H0 Cluster Comparison (Axial Slice {AXIAL_SLICE}, single-linkage, "
-        f"k={N_CLUSTERS})",
-        fontsize=12,
-    )
-    fig_cl.tight_layout()
-    fig_cl.savefig(nb_dir / "brain_dti_cluster_map.pdf", bbox_inches="tight")
-    fig_cl
     return
 
 

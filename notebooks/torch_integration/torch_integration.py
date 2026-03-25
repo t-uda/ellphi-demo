@@ -60,7 +60,9 @@ def _(coef_from_cov_grad, np, pdist_tangency_grad, torch):
             # Store VJP closures for backward
             ctx.vjp_coef = vjp_coef
             ctx.vjp_dist = vjp_dist
-            return torch.from_numpy(dists.copy()).to(centers.dtype)
+            return torch.from_numpy(dists.copy()).to(
+                device=centers.device, dtype=centers.dtype
+            )
 
         @staticmethod
         def backward(ctx, grad_output):
@@ -69,7 +71,10 @@ def _(coef_from_cov_grad, np, pdist_tangency_grad, torch):
             grad_centers_np, grad_covs_np = ctx.vjp_coef(grad_coefs)
             grad_centers = torch.from_numpy(grad_centers_np.copy())
             grad_covs = torch.from_numpy(grad_covs_np.copy())
-            return grad_centers.to(grad_output.dtype), grad_covs.to(grad_output.dtype)
+            return (
+                grad_centers.to(device=grad_output.device, dtype=grad_output.dtype),
+                grad_covs.to(device=grad_output.device, dtype=grad_output.dtype),
+            )
 
     _ = np  # keep numpy in scope for downstream cells
     return (EllphiTangencyDistances,)

@@ -291,7 +291,9 @@ def _(
     # Pick a critical sigma where iso degrades but aniso still has a strong signal.
     # Heuristic: find the sigma where the ratio aniso/iso is largest, excluding
     # the very first (zero-noise) entries.
-    _ratio = np.where(iso_means > 1e-6, aniso_means / iso_means, 0.0)
+    _ratio = np.where(
+        (iso_means > 1e-6) & np.isfinite(aniso_means), aniso_means / iso_means, 0.0
+    )
     # Prefer mid-range sigmas
     _candidates = np.where(SIGMA_LEVELS > 0.05)[0]
     if len(_candidates) > 0:

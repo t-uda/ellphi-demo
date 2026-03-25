@@ -421,8 +421,8 @@ def _(
     |:---|---:|
     | Dataset | {ASPECT_RATIO}:1 stretched circle |
     | Initial persistence (isotropic) | {abs(loss_history[0]):.4f} |
-    | **Final persistence (learned)** | **{abs(loss_history[-1]):.4f}** |
-    | Persistence gain | **{abs(loss_history[-1]) / max(abs(loss_history[0]), 1e-10):.1f}x** |
+    | **Final persistence (learned)** | **{abs(min(loss_history)):.4f}** |
+    | Persistence gain | **{abs(min(loss_history)) / max(abs(loss_history[0]), 1e-10):.1f}x** |
     | Learned semi-axes | {_r_maj:.3f} x {_r_min:.3f} |
     | Learned aspect ratio | **{_learned_aspect:.1f}:1** |
     | Major axis angle | {_major_angle:.1f} deg |
