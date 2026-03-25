@@ -443,8 +443,16 @@ def _(mo):
 
 
 @app.cell
-def _(AXIAL_SLICE, cloud, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt, tau):
+def _(AXIAL_SLICE, cloud, dgm_aniso, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt):
     from scipy.cluster.hierarchy import fcluster, linkage
+
+    # Tract-level cut: 99th-percentile of anisotropic H0 persistence keeps only
+    # the longest-lived merges (~6-10 tract-scale components) and applies the
+    # same distance threshold to both matrices for a fair comparison.
+    _h0 = dgm_aniso[0]
+    _h0_finite = _h0[np.isfinite(_h0[:, 1])]
+    _h0_pers = _h0_finite[:, 1] - _h0_finite[:, 0]
+    tau_cluster = float(np.percentile(_h0_pers, 99))
 
     def _cluster_from_dm(dm, threshold):
         """Single-linkage clustering at a persistence-threshold cut."""
@@ -453,8 +461,8 @@ def _(AXIAL_SLICE, cloud, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt, tau):
         labels = fcluster(Z, t=threshold, criterion="distance")
         return labels
 
-    labels_aniso = _cluster_from_dm(dm_aniso, tau)
-    labels_iso = _cluster_from_dm(dm_iso, tau)
+    labels_aniso = _cluster_from_dm(dm_aniso, tau_cluster)
+    labels_iso = _cluster_from_dm(dm_iso, tau_cluster)
 
     fig_cl, (ax_cl1, ax_cl2) = plt.subplots(1, 2, figsize=(14, 6))
 
@@ -480,13 +488,14 @@ def _(AXIAL_SLICE, cloud, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt, tau):
             zorder=3,
         )
         n_cl = len(np.unique(labels))
-        ax.set_title(f"{title} — {n_cl} clusters (τ={tau:.2f})")
+        ax.set_title(f"{title} — {n_cl} clusters (τ={tau_cluster:.2f})")
         ax.set_xlabel("x (voxel)")
         ax.set_ylabel("y (voxel)")
         ax.set_aspect("equal")
 
     fig_cl.suptitle(
-        f"H0 Cluster Comparison (Axial Slice {AXIAL_SLICE}, single-linkage, τ={tau:.2f})",
+        f"H0 Cluster Comparison (Axial Slice {AXIAL_SLICE}, "
+        f"single-linkage, τ={tau_cluster:.2f} [99th-pct H0])",
         fontsize=12,
     )
     fig_cl.tight_layout()

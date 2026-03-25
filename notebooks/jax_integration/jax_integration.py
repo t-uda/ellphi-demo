@@ -64,7 +64,9 @@ def _(coef_from_cov_grad, jax, jnp, np, pdist_tangency_grad):
             return dists.astype(np.float64)
 
         result_shape = jax.ShapeDtypeStruct((n_dists,), centers.dtype)
-        return jax.pure_callback(_compute, result_shape, centers, covs)
+        return jax.pure_callback(
+            _compute, result_shape, centers, covs, vmap_method="sequential"
+        )
 
     def _ellphi_fwd(centers, covs):
         """Forward pass: compute distances and save inputs as residuals."""
@@ -77,7 +79,9 @@ def _(coef_from_cov_grad, jax, jnp, np, pdist_tangency_grad):
             return dists.astype(np.float64)
 
         result_shape = jax.ShapeDtypeStruct((n_dists,), centers.dtype)
-        dists = jax.pure_callback(_compute, result_shape, centers, covs)
+        dists = jax.pure_callback(
+            _compute, result_shape, centers, covs, vmap_method="sequential"
+        )
         return dists, (centers, covs)
 
     def _ellphi_bwd(res, g):
@@ -96,7 +100,12 @@ def _(coef_from_cov_grad, jax, jnp, np, pdist_tangency_grad):
             jax.ShapeDtypeStruct(covs_saved.shape, covs_saved.dtype),
         )
         gc, gv = jax.pure_callback(
-            _compute_grads, result_shapes, centers_saved, covs_saved, g
+            _compute_grads,
+            result_shapes,
+            centers_saved,
+            covs_saved,
+            g,
+            vmap_method="sequential",
         )
         return jnp.array(gc), jnp.array(gv)
 
