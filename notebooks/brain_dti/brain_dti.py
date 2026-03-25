@@ -97,10 +97,10 @@ def _(mo):
     from dipy.io.image import load_nifti
     from dipy.reconst.dti import TensorModel
 
-    hardi_fname, hardi_bval_fname, hardi_bvec_fname = get_fnames("stanford_hardi")
+    hardi_fname, hardi_bval_fname, hardi_bvec_fname = get_fnames(name="stanford_hardi")
     data, affine = load_nifti(hardi_fname)
     bvals, bvecs = read_bvals_bvecs(hardi_bval_fname, hardi_bvec_fname)
-    gtab = gradient_table(bvals, bvecs)
+    gtab = gradient_table(bvals=bvals, bvecs=bvecs)
 
     tenmodel = TensorModel(gtab)
     tenfit = tenmodel.fit(data)
@@ -284,6 +284,7 @@ def _(AXIAL_SLICE, cloud, ellphi, fa_slice, nb_dir, np, plt):
     ax_fa.set_aspect("equal")
     fig_fa.tight_layout()
     fig_fa.savefig(nb_dir / "brain_dti_fa_ellipsoids.pdf", bbox_inches="tight")
+    plt.show()
     fig_fa
     return
 
@@ -378,6 +379,7 @@ def _(dgm_aniso, dgm_iso, nb_dir, np, plt):
     )
     fig_pd.tight_layout()
     fig_pd.savefig(nb_dir / "brain_dti_persistence_comparison.pdf", bbox_inches="tight")
+    plt.show()
     fig_pd
     return
 
@@ -425,7 +427,7 @@ def _(dgm_aniso, dgm_iso, mo, np):
     | H0 max persistence | {h0_pers.max():.2f} | {h0_iso_pers.max():.2f} |
     """
     mo.md(table)
-    return
+    return (tau,)
 
 
 @app.cell(hide_code=True)
@@ -441,20 +443,18 @@ def _(mo):
 
 
 @app.cell
-def _(AXIAL_SLICE, cloud, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt):
+def _(AXIAL_SLICE, cloud, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt, tau):
     from scipy.cluster.hierarchy import fcluster, linkage
 
-    def _cluster_from_dm(dm, n_clusters):
-        """Single-linkage clustering from a distance matrix."""
+    def _cluster_from_dm(dm, threshold):
+        """Single-linkage clustering at a persistence-threshold cut."""
         condensed = dm[np.triu_indices(dm.shape[0], k=1)]
         Z = linkage(condensed, method="single")
-        labels = fcluster(Z, t=n_clusters, criterion="maxclust")
+        labels = fcluster(Z, t=threshold, criterion="distance")
         return labels
 
-    N_CLUSTERS = 6
-
-    labels_aniso = _cluster_from_dm(dm_aniso, N_CLUSTERS)
-    labels_iso = _cluster_from_dm(dm_iso, N_CLUSTERS)
+    labels_aniso = _cluster_from_dm(dm_aniso, tau)
+    labels_iso = _cluster_from_dm(dm_iso, tau)
 
     fig_cl, (ax_cl1, ax_cl2) = plt.subplots(1, 2, figsize=(14, 6))
 
@@ -479,18 +479,19 @@ def _(AXIAL_SLICE, cloud, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt):
             alpha=0.8,
             zorder=3,
         )
-        ax.set_title(f"{title} — {N_CLUSTERS} clusters")
+        n_cl = len(np.unique(labels))
+        ax.set_title(f"{title} — {n_cl} clusters (τ={tau:.2f})")
         ax.set_xlabel("x (voxel)")
         ax.set_ylabel("y (voxel)")
         ax.set_aspect("equal")
 
     fig_cl.suptitle(
-        f"H0 Cluster Comparison (Axial Slice {AXIAL_SLICE}, single-linkage, "
-        f"k={N_CLUSTERS})",
+        f"H0 Cluster Comparison (Axial Slice {AXIAL_SLICE}, single-linkage, τ={tau:.2f})",
         fontsize=12,
     )
     fig_cl.tight_layout()
     fig_cl.savefig(nb_dir / "brain_dti_cluster_map.pdf", bbox_inches="tight")
+    plt.show()
     fig_cl
     return
 

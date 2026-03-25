@@ -54,36 +54,51 @@ def _(mo):
 def _(coef_from_cov_grad, jax, jnp, np, pdist_tangency_grad):
     @jax.custom_vjp
     def ellphi_tangency_distances(centers, covs):
-        """Compute pairwise tangency distances (forward-only path)."""
-        c_np = np.asarray(centers)
-        cov_np = np.asarray(covs)
-        coefs, _ = coef_from_cov_grad(c_np, cov_np)
-        dists, _ = pdist_tangency_grad(coefs)
-        return jnp.array(dists)
+        """Compute pairwise tangency distances — jit/vmap-safe via pure_callback."""
+        n = centers.shape[0]
+        n_dists = n * (n - 1) // 2
+
+        def _compute(c, v):
+            coefs, _ = coef_from_cov_grad(np.asarray(c), np.asarray(v))
+            dists, _ = pdist_tangency_grad(coefs)
+            return dists.astype(np.float64)
+
+        result_shape = jax.ShapeDtypeStruct((n_dists,), centers.dtype)
+        return jax.pure_callback(_compute, result_shape, centers, covs)
 
     def _ellphi_fwd(centers, covs):
-        """Forward pass: compute distances and save inputs as residuals.
+        """Forward pass: compute distances and save inputs as residuals."""
+        n = centers.shape[0]
+        n_dists = n * (n - 1) // 2
 
-        JAX residuals must be valid JAX types (arrays), so we save the
-        original inputs and recompute VJP closures in the backward pass.
-        """
-        c_np = np.asarray(centers)
-        cov_np = np.asarray(covs)
-        coefs, _ = coef_from_cov_grad(c_np, cov_np)
-        dists, _ = pdist_tangency_grad(coefs)
-        return jnp.array(dists), (centers, covs)
+        def _compute(c, v):
+            coefs, _ = coef_from_cov_grad(np.asarray(c), np.asarray(v))
+            dists, _ = pdist_tangency_grad(coefs)
+            return dists.astype(np.float64)
+
+        result_shape = jax.ShapeDtypeStruct((n_dists,), centers.dtype)
+        dists = jax.pure_callback(_compute, result_shape, centers, covs)
+        return dists, (centers, covs)
 
     def _ellphi_bwd(res, g):
         """Backward pass: recompute VJPs from saved inputs and chain."""
         centers_saved, covs_saved = res
-        c_np = np.asarray(centers_saved)
-        cov_np = np.asarray(covs_saved)
-        coefs, vjp_coef = coef_from_cov_grad(c_np, cov_np)
-        _dists, vjp_dist = pdist_tangency_grad(coefs)
-        grad_np = np.asarray(g)
-        grad_coefs = vjp_dist(grad_np)
-        grad_centers_np, grad_covs_np = vjp_coef(grad_coefs)
-        return jnp.array(grad_centers_np), jnp.array(grad_covs_np)
+
+        def _compute_grads(c, v, grad):
+            coefs, vjp_coef = coef_from_cov_grad(np.asarray(c), np.asarray(v))
+            _dists, vjp_dist = pdist_tangency_grad(coefs)
+            grad_coefs = vjp_dist(np.asarray(grad))
+            gc, gv = vjp_coef(grad_coefs)
+            return gc.astype(np.float64), gv.astype(np.float64)
+
+        result_shapes = (
+            jax.ShapeDtypeStruct(centers_saved.shape, centers_saved.dtype),
+            jax.ShapeDtypeStruct(covs_saved.shape, covs_saved.dtype),
+        )
+        gc, gv = jax.pure_callback(
+            _compute_grads, result_shapes, centers_saved, covs_saved, g
+        )
+        return jnp.array(gc), jnp.array(gv)
 
     ellphi_tangency_distances.defvjp(_ellphi_fwd, _ellphi_bwd)
     return (ellphi_tangency_distances,)
