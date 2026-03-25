@@ -229,7 +229,7 @@ def _(cloud, mo, pdist, ripser, squareform):
     dgm_iso = ripser(dm_iso, distance_matrix=True, maxdim=1)["dgms"]
 
     mo.md("**PH computation complete.**")
-    return dgm_aniso, dgm_iso, dm_aniso, dm_iso
+    return dgm_aniso, dgm_iso
 
 
 @app.cell(hide_code=True)
@@ -427,81 +427,6 @@ def _(dgm_aniso, dgm_iso, mo, np):
     | H0 max persistence | {h0_pers.max():.2f} | {h0_iso_pers.max():.2f} |
     """
     mo.md(table)
-    return (tau,)
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ### 5.4 H0 Cluster Map
-
-    We extract connected components from the H0 barcode at a persistence
-    threshold and compare anisotropic vs isotropic clustering.
-    Anisotropic clusters should align with anatomically known fiber bundles.
-    """)
-    return
-
-
-@app.cell
-def _(AXIAL_SLICE, cloud, dgm_aniso, dm_aniso, dm_iso, fa_slice, nb_dir, np, plt):
-    from scipy.cluster.hierarchy import fcluster, linkage
-
-    # Tract-level cut: 99th-percentile of anisotropic H0 persistence keeps only
-    # the longest-lived merges (~6-10 tract-scale components) and applies the
-    # same distance threshold to both matrices for a fair comparison.
-    _h0 = dgm_aniso[0]
-    _h0_finite = _h0[np.isfinite(_h0[:, 1])]
-    _h0_pers = _h0_finite[:, 1] - _h0_finite[:, 0]
-    tau_cluster = float(np.percentile(_h0_pers, 99))
-
-    def _cluster_from_dm(dm, threshold):
-        """Single-linkage clustering at a persistence-threshold cut."""
-        condensed = dm[np.triu_indices(dm.shape[0], k=1)]
-        Z = linkage(condensed, method="single")
-        labels = fcluster(Z, t=threshold, criterion="distance")
-        return labels
-
-    labels_aniso = _cluster_from_dm(dm_aniso, tau_cluster)
-    labels_iso = _cluster_from_dm(dm_iso, tau_cluster)
-
-    fig_cl, (ax_cl1, ax_cl2) = plt.subplots(1, 2, figsize=(14, 6))
-
-    for ax, labels, title in [
-        (ax_cl1, labels_aniso, "Anisotropic (EllPHi)"),
-        (ax_cl2, labels_iso, "Isotropic (Euclidean)"),
-    ]:
-        ax.imshow(
-            fa_slice.T,
-            cmap="gray",
-            origin="lower",
-            vmin=0,
-            vmax=1,
-            alpha=0.3,
-        )
-        ax.scatter(
-            cloud.mean[:, 0],
-            cloud.mean[:, 1],
-            c=labels,
-            cmap="tab10",
-            s=8,
-            alpha=0.8,
-            zorder=3,
-        )
-        n_cl = len(np.unique(labels))
-        ax.set_title(f"{title} — {n_cl} clusters (τ={tau_cluster:.2f})")
-        ax.set_xlabel("x (voxel)")
-        ax.set_ylabel("y (voxel)")
-        ax.set_aspect("equal")
-
-    fig_cl.suptitle(
-        f"H0 Cluster Comparison (Axial Slice {AXIAL_SLICE}, "
-        f"single-linkage, τ={tau_cluster:.2f} [99th-pct H0])",
-        fontsize=12,
-    )
-    fig_cl.tight_layout()
-    fig_cl.savefig(nb_dir / "brain_dti_cluster_map.pdf", bbox_inches="tight")
-    plt.show()
-    fig_cl
     return
 
 
