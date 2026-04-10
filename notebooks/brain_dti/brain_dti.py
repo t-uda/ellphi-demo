@@ -68,9 +68,12 @@ def _():
     # --- Configuration ---
     AXIAL_SLICE = 45  # slice index (corpus callosum level)
     FA_THRESHOLD = 0.3  # white-matter mask threshold
-    N_SUBSAMPLE = 600  # max voxels for tangency computation
+    # Define an ROI (Bounding Box) to preserve spatial continuity
+    X_MIN, X_MAX = 20, 60
+    Y_MIN, Y_MAX = 40, 75
+    SCALE_FACTOR = 0.5  # Amplification factor for tensor scaling to emphasize anisotropy
     SEED = 42
-    return AXIAL_SLICE, FA_THRESHOLD, N_SUBSAMPLE, SEED
+    return AXIAL_SLICE, FA_THRESHOLD, SCALE_FACTOR, X_MAX, X_MIN, Y_MAX, Y_MIN
 
 
 @app.cell(hide_code=True)
@@ -118,44 +121,50 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## 2. Slice Selection & White-Matter Masking
+    ## 2. Slice Selection & ROI Extraction
 
     We select an axial slice at the level of the **corpus callosum body**
     and retain only voxels with FA > 0.3 (white matter).
+    To preserve spatial continuity of the fiber tracts while keeping
+    computational cost bounded, we further restrict points to a **dense rectangular ROI**
+    (Bounding Box) instead of uniform random subsampling.
     """)
     return
 
 
 @app.cell
-def _(AXIAL_SLICE, FA_THRESHOLD, N_SUBSAMPLE, SEED, fa, mo, np, tensors):
+def _(
+    AXIAL_SLICE,
+    FA_THRESHOLD,
+    X_MAX,
+    X_MIN,
+    Y_MAX,
+    Y_MIN,
+    fa,
+    mo,
+    np,
+    tensors,
+):
     # Extract axial slice
     fa_slice = fa[:, :, AXIAL_SLICE]
     tensors_slice = tensors[:, :, AXIAL_SLICE]  # (X, Y, 3, 3)
 
-    # White-matter mask
-    wm_mask = fa_slice > FA_THRESHOLD
+    # Generate coordinate grids for bounding box extraction
+    X, Y = np.meshgrid(np.arange(fa_slice.shape[0]), np.arange(fa_slice.shape[1]), indexing='ij')
+
+    # White-matter mask AND Bounding Box
+    wm_mask = (fa_slice > FA_THRESHOLD) & (X >= X_MIN) & (X <= X_MAX) & (Y >= Y_MIN) & (Y <= Y_MAX)
     n_wm = wm_mask.sum()
 
     # Get voxel coordinates and tensors for masked voxels
     yx = np.argwhere(wm_mask)  # (n_wm, 2) — row, col indices
-    centers_all = yx.astype(np.float64)
-    tensors_wm = tensors_slice[wm_mask]  # (n_wm, 3, 3)
-
-    # Subsample if needed
-    rng = np.random.default_rng(SEED)
-    if n_wm > N_SUBSAMPLE:
-        idx = rng.choice(n_wm, size=N_SUBSAMPLE, replace=False)
-        idx.sort()
-        centers = centers_all[idx]
-        tensors_sel = tensors_wm[idx]
-    else:
-        centers = centers_all
-        tensors_sel = tensors_wm
+    centers = yx.astype(np.float64)
+    tensors_sel = tensors_slice[wm_mask]  # (n_wm, 3, 3)
 
     n_pts = len(centers)
     mo.md(
-        f"**Slice {AXIAL_SLICE}:** {n_wm} white-matter voxels, "
-        f"subsampled to **{n_pts}** points."
+        f"**Slice {AXIAL_SLICE}:** "
+        f"ROI [{X_MIN}:{X_MAX}, {Y_MIN}:{Y_MAX}] selected **{n_pts}** contiguous white-matter voxels."
     )
     return centers, fa_slice, tensors_sel
 
@@ -182,7 +191,7 @@ def _(mo):
 
 
 @app.cell
-def _(EllipseCloud, centers, coef_from_cov, mo, np, tensors_sel):
+def _(EllipseCloud, SCALE_FACTOR, centers, coef_from_cov, mo, np, tensors_sel):
     # Extract in-plane 2x2 sub-matrix (xx, xy, yx, yy)
     covs = tensors_sel[:, :2, :2].copy()  # (n_pts, 2, 2)
 
@@ -190,15 +199,20 @@ def _(EllipseCloud, centers, coef_from_cov, mo, np, tensors_sel):
     coefs = coef_from_cov(centers, covs)
     # nbd: use arange as placeholder (DTI voxels have no k-NN structure)
     nbd = np.arange(len(centers)).reshape(-1, 1)
-    cloud = EllipseCloud(coefs, centers, covs, k=1, nbd=nbd)
+    cloud_init = EllipseCloud(coefs, centers, covs, k=1, nbd=nbd)
 
     # Rescale: normalize ellipsoid sizes relative to spatial distances
-    ell_scale = cloud.rescale(method="median")
+    ell_scale = cloud_init.rescale(method="median")
+
+    # Amplify anisotropy scaling to highlight topological differences
+    covs_scaled = cloud_init.cov * SCALE_FACTOR
+    coefs_scaled = coef_from_cov(cloud_init.mean, covs_scaled)
+    cloud = EllipseCloud(coefs_scaled, cloud_init.mean, covs_scaled, k=1, nbd=cloud_init.nbd)
 
     mo.md(
         f"**Ellipse cloud constructed.** "
         f"{cloud.n} ellipses in {cloud.n_dim}D, "
-        f"rescale factor: {ell_scale:.4f}"
+        f"rescale factor: {ell_scale:.4f}, explicitly amplified by {SCALE_FACTOR}x."
     )
     return (cloud,)
 
@@ -285,7 +299,6 @@ def _(AXIAL_SLICE, cloud, ellphi, fa_slice, nb_dir, np, plt):
     fig_fa.tight_layout()
     fig_fa.savefig(nb_dir / "brain_dti_fa_ellipsoids.pdf", bbox_inches="tight")
     plt.show()
-    fig_fa
     return
 
 
@@ -380,7 +393,6 @@ def _(dgm_aniso, dgm_iso, nb_dir, np, plt):
     fig_pd.tight_layout()
     fig_pd.savefig(nb_dir / "brain_dti_persistence_comparison.pdf", bbox_inches="tight")
     plt.show()
-    fig_pd
     return
 
 
@@ -437,32 +449,29 @@ def _(mo):
 
     **Anisotropic PH** uses diffusion tensors to define directional
     proximity: voxels sharing a common fiber direction are "closer" in the
-    tangency metric, even if spatially separated. The key step is
-    **`rescale("median")`**, which normalizes the ellipsoid scale so that
-    the tangency distance is well-balanced between spatial proximity and
-    directional coherence.
+    tangency metric, even if spatially separated. The key steps are
+    **defining a contiguous spatial ROI (e.g., a bounding box)** to preserve
+    the tract topology, and **scaling the tensors (`SCALE_FACTOR`)** beyond standard
+    voxel normalization (`rescale("median")`). This explicitly acts as mathematically extending
+    the observation time $t$ for the diffusion process to ensure that tangency distance between
+    strongly aligned adjacent voxels effectively overrides the orthogonal grid spacing.
 
     This yields:
 
     - **Fewer, longer-lived H0 components** that correspond to
-      anatomically coherent fiber bundles (corpus callosum, internal
-      capsule, corticospinal tract).
-    - **H1 cycles** that reflect the directional loop structure of tracts
-      (e.g., cingulum, arcuate fasciculus), rather than merely spatial
-      holes like ventricles.
+      anatomically coherent fiber bundles (e.g., portions of the corpus callosum).
+    - **H1 cycles** that reflect the directional loop structure of tracts,
+      rather than merely spatial holes like ventricles.
 
     Standard isotropic PH, by contrast, groups voxels by Euclidean
     proximity alone, fragmenting elongated bundles into many small spatial
-    clusters.
+    clusters at early filtration values.
 
     **Limitations:**
     - We analyze a single 2D axial slice; the full 3D tract architecture
       requires volumetric analysis.
     - The 2×2 in-plane tensor projection discards through-plane fiber
       information (e.g., the corticospinal tract running superiorly).
-    - Subsampling may miss fine structures. A full-resolution analysis
-      would require approximate nearest-neighbor or sparse tangency
-      computation.
     """)
     return
 

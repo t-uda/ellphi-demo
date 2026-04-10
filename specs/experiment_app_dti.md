@@ -37,9 +37,9 @@ GradientTable(bvals, bvecs) → TensorModel(gtab) → TensorFit
 2. Apply a **white-matter mask**: FA $> 0.3$. This retains voxels with significant anisotropy while excluding gray matter and CSF.
 3. Expected yield: ~2000–4000 voxels per slice.
 
-### 3.3 Subsampling
-- If $n > 1000$, randomly subsample to $n \approx 500\text{–}1000$ voxels (tangency distance computation is $O(n^2)$; ripser is cubic in the worst case).
-- Alternatively, use a coarser spatial stride (every 2nd voxel in each direction).
+### 3.3 Region of Interest (ROI) Extraction
+- Random subsampling fragments the continuous fiber topology. Instead, extract a dense bounding box (e.g., $X \in [20, 60], Y \in [40, 75]$ for the corpus callosum region) to preserve local spatial continuity while limiting the point count to $n \approx 500\text{–}1000$.
+- This ensures adjacent voxels along a tract remain structurally connected in the tangency graph.
 
 ### 3.4 Tensor Projection (3D → 2D)
 Since we analyze a single axial slice, the in-plane diffusion is captured by the $2 \times 2$ sub-matrix:
@@ -51,8 +51,9 @@ This is the upper-left block of the full $3 \times 3$ tensor in the $(x, y, z)$ 
 ## 4. Ellipsoid Construction
 
 - **Centers**: $(x_i, y_i) \in \mathbb{R}^2$ — voxel coordinates within the slice (in mm or voxel units).
-- **Covariances**: $\Sigma_i = \alpha \cdot D_{2\mathrm{D}, i}$ — the in-plane diffusion tensor, scaled by a factor $\alpha$ to balance spatial distances and tensor-induced anisotropy.
-  - The scaling factor $\alpha$ should be chosen so that the typical ellipsoid semi-axis is comparable to the inter-voxel spacing (e.g., $\alpha = 1 / \mathrm{median}(\lambda_{\max})$ where $\lambda_{\max}$ is the largest eigenvalue).
+- **Covariances**: $\Sigma_i = \beta \cdot \alpha \cdot D_{2\mathrm{D}, i}$ — the in-plane diffusion tensor.
+  - First, normalize the typical ellipsoid scale using $\alpha$ to make it comparable to inter-voxel spacing (e.g., via `rescale("median")`).
+  - Then, apply an explicit amplification factor $\beta$ (e.g., `SCALE_FACTOR = 3.0`) to strongly overlap tensors along the fiber orientation. This acts mathematically as extending the observation time $t$, allowing tangential topologies to override the orthogonal Euclidean spacing of the voxel grid.
 - **EllPHi API**: `coefs = ellphi.coef_from_cov(centers, covs)`
 
 ## 5. Persistent Homology Computation
