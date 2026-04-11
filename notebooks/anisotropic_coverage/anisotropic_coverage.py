@@ -15,7 +15,6 @@ def _():
     from ellphi.grad import coef_from_cov_grad, pdist_tangency_grad
     from matplotlib.patches import Ellipse
     from ripser import ripser
-    from scipy.optimize import minimize
     from scipy.spatial.distance import squareform
 
     nb_dir = Path(__file__).resolve().parent
@@ -23,7 +22,6 @@ def _():
         Ellipse,
         coef_from_cov_grad,
         ellphi,
-        minimize,
         mo,
         nb_dir,
         np,
@@ -67,8 +65,8 @@ def _(plt):
 def _(np):
     # --- Configuration ---
     N_SENSORS = 40  # mobile sensors to optimize
-    R_MAJOR = 0.08  # semi-major axis (fixed during optimization)
-    R_MINOR = 0.04  # semi-minor axis (fixed during optimization)
+    R_MAJOR = 0.10  # semi-major axis (fixed during optimization)
+    R_MINOR = 0.05  # semi-minor axis (fixed during optimization)
     R_ISO = np.sqrt(R_MAJOR * R_MINOR)  # equal-area circle radius
     SEED = 42
 
@@ -77,10 +75,25 @@ def _(np):
     R_WALL_MINOR = 0.02  # wall semi-minor (thin)
 
     # Optimization
-    N_RESTARTS = 2
-    MAXITER_WARMUP = 100
-    MAXITER = 500
+    N_RESTARTS = 1
+    MAXITER_WARMUP = 20
+    MAXITER = 100
+    LEARNING_RATE = 0.001
+    JIGGLE_RATE = 0.05  # Random θ noise per iteration (e.g. 0.01 = 1%)
+    T_SCALE = 10.00  # Angular scaling factor for gradient balancing
+
+    # Initialization ranges
+    INIT_X_RANGE = (0.15, 0.85)
+    INIT_Y_RANGE = (0.30, 0.70)
+    INIT_THETA_RANGE = (-0.15, 0.15)
+    JITTER_MAGNITUDE = 0.05
     return (
+        INIT_THETA_RANGE,
+        INIT_X_RANGE,
+        INIT_Y_RANGE,
+        JIGGLE_RATE,
+        JITTER_MAGNITUDE,
+        LEARNING_RATE,
         MAXITER,
         MAXITER_WARMUP,
         N_RESTARTS,
@@ -91,6 +104,7 @@ def _(np):
         R_WALL_MAJOR,
         R_WALL_MINOR,
         SEED,
+        T_SCALE,
     )
 
 
@@ -112,44 +126,43 @@ def _(R_WALL_MAJOR, R_WALL_MINOR, ellphi, np, ripser, squareform):
         centers = []
         thetas = []
 
-        dx = R_WALL_MAJOR * np.cos(np.pi/4)
-        dy = R_WALL_MAJOR * np.sin(np.pi/4)
+        dx = R_WALL_MAJOR * np.cos(np.pi / 4)
+        dy = R_WALL_MAJOR * np.sin(np.pi / 4)
 
         bx, by = 0.5, 0.15
 
         # Bottom left arm
         centers.append([bx - dx, by + dy])
-        thetas.append(-np.pi/4)
+        thetas.append(-np.pi / 4)
 
         # Bottom right arm
         centers.append([bx + dx, by + dy])
-        thetas.append(np.pi/4)
+        thetas.append(np.pi / 4)
 
         # Left wall (1 ellipse)
-        lx = bx - 2*dx
-        ly = by + 2*dy + R_WALL_MAJOR
+        lx = bx - 2 * dx
+        ly = by + 2 * dy + R_WALL_MAJOR
         centers.append([lx, ly])
-        thetas.append(np.pi/2)
+        thetas.append(np.pi / 2)
 
         # Right wall (1 ellipse)
-        rx = bx + 2*dx
-        ry = by + 2*dy + R_WALL_MAJOR
+        rx = bx + 2 * dx
+        ry = by + 2 * dy + R_WALL_MAJOR
         centers.append([rx, ry])
-        thetas.append(np.pi/2)
+        thetas.append(np.pi / 2)
 
         # Top Left Lid
-        top_left_tip_y = by + 2*dy + 2*R_WALL_MAJOR
+        top_left_tip_y = by + 2 * dy + 2 * R_WALL_MAJOR
         centers.append([lx + dx, top_left_tip_y - dy])
-        thetas.append(-np.pi/4)
+        thetas.append(-np.pi / 4)
 
         # Top Right Lid
         centers.append([rx - dx, top_left_tip_y - dy])
-        thetas.append(np.pi/4)
+        thetas.append(np.pi / 4)
 
         v_bounds = (lx, rx, by, top_left_tip_y)
 
         return np.array(centers), np.array(thetas), v_bounds
-
 
     def build_wall_coefs():
         """Build coefficient vectors for fixed wall ellipses."""
@@ -186,6 +199,12 @@ def _(R_WALL_MAJOR, R_WALL_MINOR, ellphi, np, ripser, squareform):
 
 @app.cell
 def _(
+    INIT_THETA_RANGE,
+    INIT_X_RANGE,
+    INIT_Y_RANGE,
+    JIGGLE_RATE,
+    JITTER_MAGNITUDE,
+    LEARNING_RATE,
     MAXITER,
     MAXITER_WARMUP,
     N_RESTARTS,
@@ -194,18 +213,46 @@ def _(
     R_MAJOR,
     R_MINOR,
     SEED,
+    T_SCALE,
     build_covs,
     build_wall_coefs,
     coef_from_cov_grad,
     h1_total_persistence,
-    minimize,
     mo,
     np,
     pdist_tangency_grad,
     ripser,
     squareform,
 ):
-    T_SCALE = 5.0  # Scale theta for better gradient balancing
+    def gradient_descent(loss_grad_fn, x0, args, max_iter, lr, jiggle=0.0):
+        """Simple Gradient Descent with optional θ-jiggle."""
+        x = x0.copy()
+        is_aniso = len(x) % 3 == 0
+
+        for _ in range(max_iter):
+            loss, grad = loss_grad_fn(x, *args)
+
+            # Gradient Step
+            x = x - lr * grad
+
+            # θ-Jiggle: add small random noise to rotation components
+            if is_aniso and jiggle > 0:
+                noise = np.random.uniform(-jiggle, jiggle, len(x) // 3)
+                x[2::3] += noise
+
+        return x, loss
+
+    def initialize_sensors(rng, n_sensors, type="aniso"):
+        """Centralized sensor initialization using configuration ranges."""
+        cx = rng.uniform(*INIT_X_RANGE, n_sensors)
+        cy = rng.uniform(*INIT_Y_RANGE, n_sensors)
+        cy += 1.8 * (cx - 0.5) ** 2
+        centers = np.column_stack([cx, cy])
+
+        if type == "aniso":
+            thetas = rng.uniform(INIT_THETA_RANGE[0], INIT_THETA_RANGE[1], n_sensors)
+            return centers, thetas
+        return centers
 
     def _pack(centers, thetas):
         """Pack centers (N,2) and thetas (N,) into [x0,y0,t0, x1,y1,t1, ...]."""
@@ -336,10 +383,7 @@ def _(
         """
         _rng = np.random.RandomState(SEED)
         # Initialize sensors securely inside the lower-center of the funnel
-        init_centers_x = _rng.uniform(0.35, 0.65, N_SENSORS)
-        init_centers_y = _rng.uniform(0.25, 0.65, N_SENSORS)
-        init_centers = np.column_stack([init_centers_x, init_centers_y])
-        init_thetas = _rng.uniform(0, np.pi, N_SENSORS)
+        init_centers, init_thetas = initialize_sensors(_rng, N_SENSORS, type="aniso")
 
         init_h1 = h1_total_persistence(
             init_centers, init_thetas, R_MAJOR, R_MINOR, wall_coefs=_wall_coefs
@@ -352,64 +396,43 @@ def _(
         # Stage 1: short run from initial for intermediate snapshot
         _rng_opt = np.random.RandomState(SEED + 100)
         x0 = _pack(init_centers, init_thetas)
-        x_start = x0 + _rng_opt.uniform(-0.05, 0.05, len(x0))
+        x_start = x0 + _rng_opt.uniform(-JITTER_MAGNITUDE, JITTER_MAGNITUDE, len(x0))
         for i in range(N_SENSORS):
             x_start[3 * i] = np.clip(x_start[3 * i], _V_XMIN, _V_XMAX)
             x_start[3 * i + 1] = np.clip(x_start[3 * i + 1], _V_YMIN, _V_YMAX)
-        res_mid = minimize(
+        res_x, res_loss = gradient_descent(
             _loss_and_grad_aniso,
             x_start,
             args=(R_MAJOR, R_MINOR),
-            method="L-BFGS-B",
-            jac=True,
-            bounds=bounds_aniso,
-            options={
-                "maxiter": MAXITER_WARMUP,
-                "ftol": 1e-12,
-                "gtol": 1e-8,
-                "maxcor": 5,
-            },
+            max_iter=MAXITER_WARMUP,
+            lr=LEARNING_RATE,
+            jiggle=JIGGLE_RATE,
         )
-        c_mid, t_mid = _unpack(res_mid.x)
-        mid_h1 = h1_total_persistence(
-            c_mid, t_mid, R_MAJOR, R_MINOR, wall_coefs=_wall_coefs
-        )
+        c_mid, t_mid = _unpack(res_x)
+        mid_h1 = res_loss
 
         # Stage 2: random restarts for global search
-        best_x = res_mid.x.copy()
+        best_x = res_x.copy()
         best_h1 = mid_h1
         for _trial in range(N_RESTARTS):
-            cx = _rng_opt.uniform(0.35, 0.65, N_SENSORS)
-            cy = _rng_opt.uniform(0.25, 0.65, N_SENSORS)
-            c0 = np.column_stack([cx, cy])
-            t0 = _rng_opt.uniform(-0.05, 0.05, N_SENSORS)
+            c0, t0 = initialize_sensors(_rng_opt, N_SENSORS, type="aniso")
             xs = _pack(c0, t0)
-            res = minimize(
+            trial_x, trial_h1 = gradient_descent(
                 _loss_and_grad_aniso,
                 xs,
                 args=(R_MAJOR, R_MINOR),
-                method="L-BFGS-B",
-                jac=True,
-                bounds=bounds_aniso,
-                options={
-                    "maxiter": MAXITER,
-                    "ftol": 1e-12,
-                    "gtol": 1e-8,
-                    "maxcor": 40,
-                },
-            )
-            c_trial, t_trial = _unpack(res.x)
-            trial_h1 = h1_total_persistence(
-                c_trial, t_trial, R_MAJOR, R_MINOR, wall_coefs=_wall_coefs
+                max_iter=MAXITER,
+                lr=LEARNING_RATE,
+                jiggle=JIGGLE_RATE,
             )
             if trial_h1 < best_h1:
                 best_h1 = trial_h1
-                best_x = res.x.copy()
+                best_x = trial_x.copy()
 
         c_final, t_final = _unpack(best_x)
         snapshots = [
             ("Initial", init_h1, init_centers.copy(), init_thetas.copy()),
-            (f"Iter {res_mid.nit}", mid_h1, c_mid.copy(), t_mid.copy()),
+            (f"Iter {MAXITER_WARMUP}", mid_h1, c_mid.copy(), t_mid.copy()),
             ("Optimized", best_h1, c_final.copy(), t_final.copy()),
         ]
         return snapshots
@@ -429,25 +452,17 @@ def _(
             bounds_iso.extend([(_V_XMIN, _V_XMAX), (_V_YMIN, _V_YMAX)])
 
         for _trial in range(N_RESTARTS):
-            cx = _rng_opt.uniform(0.35, 0.65, N_SENSORS)
-            cy = _rng_opt.uniform(0.25, 0.65, N_SENSORS)
-            c0 = np.column_stack([cx, cy])
-            res = minimize(
+            c0 = initialize_sensors(_rng_opt, N_SENSORS, type="iso")
+            res_x, res_h1 = gradient_descent(
                 _loss_and_grad_iso,
                 c0.ravel(),
                 args=(R_ISO,),
-                method="L-BFGS-B",
-                jac=True,
-                bounds=bounds_iso,
-                options={"maxiter": MAXITER, "ftol": 1e-10, "gtol": 1e-7},
+                max_iter=MAXITER,
+                lr=LEARNING_RATE,
             )
-            c_trial = _unpack_iso(res.x)
-            trial_h1 = h1_total_persistence(
-                c_trial, np.zeros(N_SENSORS), R_ISO, R_ISO, wall_coefs=_wall_coefs
-            )
-            if trial_h1 < best_h1:
-                best_h1 = trial_h1
-                best_x = res.x.copy()
+            if res_h1 < best_h1:
+                best_h1 = res_h1
+                best_x = res_x.copy()
 
         iso_centers = _unpack_iso(best_x)
         return iso_centers, best_h1
@@ -533,7 +548,13 @@ def _(
         ax.set_aspect("equal")
         ax.set_title(title, fontsize=11, fontweight="bold")
         rect = plt.Rectangle(
-            (_V_XMIN, _V_YMIN), _V_XMAX - _V_XMIN, _V_YMAX - _V_YMIN, fill=False, edgecolor="gray", linewidth=1.5, linestyle="--"
+            (_V_XMIN, _V_YMIN),
+            _V_XMAX - _V_XMIN,
+            _V_YMAX - _V_YMIN,
+            fill=False,
+            edgecolor="gray",
+            linewidth=1.5,
+            linestyle="--",
         )
         ax.add_patch(rect)
         ax.set_xticks([0, 0.5, 1])
@@ -697,7 +718,13 @@ def _(
     ax_a.set_ylim(-0.15, 1.15)
     ax_a.set_aspect("equal")
     rect_a = plt.Rectangle(
-        (_V_XMIN, _V_YMIN), _V_XMAX - _V_XMIN, _V_YMAX - _V_YMIN, fill=False, edgecolor="gray", linewidth=1.5, linestyle="--"
+        (_V_XMIN, _V_YMIN),
+        _V_XMAX - _V_XMIN,
+        _V_YMAX - _V_YMIN,
+        fill=False,
+        edgecolor="gray",
+        linewidth=1.5,
+        linestyle="--",
     )
     ax_a.add_patch(rect_a)
     ax_a.set_title("Anisotropic (optimized)", fontsize=11, fontweight="bold")
@@ -764,7 +791,13 @@ def _(
     ax_i.set_ylim(-0.15, 1.15)
     ax_i.set_aspect("equal")
     rect_i = plt.Rectangle(
-        (_V_XMIN, _V_YMIN), _V_XMAX - _V_XMIN, _V_YMAX - _V_YMIN, fill=False, edgecolor="gray", linewidth=1.5, linestyle="--"
+        (_V_XMIN, _V_YMIN),
+        _V_XMAX - _V_XMIN,
+        _V_YMAX - _V_YMIN,
+        fill=False,
+        edgecolor="gray",
+        linewidth=1.5,
+        linestyle="--",
     )
     ax_i.add_patch(rect_i)
     ax_i.set_title("Isotropic (optimized)", fontsize=11, fontweight="bold")
