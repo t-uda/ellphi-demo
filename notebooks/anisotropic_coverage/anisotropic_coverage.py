@@ -66,27 +66,25 @@ def _(plt):
 @app.cell
 def _(np):
     # --- Configuration ---
-    N_SENSORS = 20  # mobile sensors to optimize
-    R_MAJOR = 0.20  # semi-major axis (fixed during optimization)
-    R_MINOR = 0.10  # semi-minor axis (fixed during optimization)
+    N_SENSORS = 40  # mobile sensors to optimize
+    R_MAJOR = 0.08  # semi-major axis (fixed during optimization)
+    R_MINOR = 0.04  # semi-minor axis (fixed during optimization)
     R_ISO = np.sqrt(R_MAJOR * R_MINOR)  # equal-area circle radius
     SEED = 42
 
     # Wall: fixed thin ellipses along boundary to create H1
-    N_WALL_PER_EDGE = 3  # sensors per edge
     R_WALL_MAJOR = 0.25  # wall semi-major (along edge)
     R_WALL_MINOR = 0.02  # wall semi-minor (thin)
 
     # Optimization
     N_RESTARTS = 2
-    MAXITER_WARMUP = 50
-    MAXITER = 150
+    MAXITER_WARMUP = 100
+    MAXITER = 500
     return (
         MAXITER,
         MAXITER_WARMUP,
         N_RESTARTS,
         N_SENSORS,
-        N_WALL_PER_EDGE,
         R_ISO,
         R_MAJOR,
         R_MINOR,
@@ -97,15 +95,7 @@ def _(np):
 
 
 @app.cell
-def _(
-    N_WALL_PER_EDGE,
-    R_WALL_MAJOR,
-    R_WALL_MINOR,
-    ellphi,
-    np,
-    ripser,
-    squareform,
-):
+def _(R_WALL_MAJOR, R_WALL_MINOR, ellphi, np, ripser, squareform):
     def build_covs(thetas, r0, r1):
         """Build covariance matrices from rotation angles and semi-axes."""
         n = len(thetas)
@@ -117,36 +107,56 @@ def _(
             covs[i] = rot @ diag @ rot.T
         return covs
 
-    def build_wall_coefs():
-        """Build coefficient vectors for fixed wall ellipses along [0,1]^2 boundary.
+    def get_wall_layout():
+        """Returns centers and thetas for a 6-ellipse boundary connected perfectly tip-to-tip."""
+        centers = []
+        thetas = []
 
-        Places N_WALL_PER_EDGE thin ellipses on each of the 4 edges, oriented
-        along the edge direction. Returns (wall_coefs, n_wall).
-        """
-        positions = np.linspace(0, 1, N_WALL_PER_EDGE + 2)[1:-1]  # exclude corners
-        wall_centers = []
-        wall_thetas = []
-        # Bottom edge (y=0): horizontal
-        for x in positions:
-            wall_centers.append([x, 0.0])
-            wall_thetas.append(0.0)
-        # Top edge (y=1): horizontal
-        for x in positions:
-            wall_centers.append([x, 1.0])
-            wall_thetas.append(0.0)
-        # Left edge (x=0): vertical
-        for y in positions:
-            wall_centers.append([0.0, y])
-            wall_thetas.append(np.pi / 2)
-        # Right edge (x=1): vertical
-        for y in positions:
-            wall_centers.append([1.0, y])
-            wall_thetas.append(np.pi / 2)
-        wall_centers = np.array(wall_centers)
-        wall_thetas = np.array(wall_thetas)
+        dx = R_WALL_MAJOR * np.cos(np.pi/4)
+        dy = R_WALL_MAJOR * np.sin(np.pi/4)
+
+        bx, by = 0.5, 0.15
+
+        # Bottom left arm
+        centers.append([bx - dx, by + dy])
+        thetas.append(-np.pi/4)
+
+        # Bottom right arm
+        centers.append([bx + dx, by + dy])
+        thetas.append(np.pi/4)
+
+        # Left wall (1 ellipse)
+        lx = bx - 2*dx
+        ly = by + 2*dy + R_WALL_MAJOR
+        centers.append([lx, ly])
+        thetas.append(np.pi/2)
+
+        # Right wall (1 ellipse)
+        rx = bx + 2*dx
+        ry = by + 2*dy + R_WALL_MAJOR
+        centers.append([rx, ry])
+        thetas.append(np.pi/2)
+
+        # Top Left Lid
+        top_left_tip_y = by + 2*dy + 2*R_WALL_MAJOR
+        centers.append([lx + dx, top_left_tip_y - dy])
+        thetas.append(-np.pi/4)
+
+        # Top Right Lid
+        centers.append([rx - dx, top_left_tip_y - dy])
+        thetas.append(np.pi/4)
+
+        v_bounds = (lx, rx, by, top_left_tip_y)
+
+        return np.array(centers), np.array(thetas), v_bounds
+
+
+    def build_wall_coefs():
+        """Build coefficient vectors for fixed wall ellipses."""
+        wall_centers, wall_thetas, v_bounds = get_wall_layout()
         wall_covs = build_covs(wall_thetas, R_WALL_MAJOR, R_WALL_MINOR)
         coefs = ellphi.coef_from_cov(wall_centers, wall_covs)
-        return coefs, len(wall_centers)
+        return coefs, len(wall_centers), wall_centers, wall_thetas, v_bounds
 
     def compute_h1(centers, thetas, r0, r1, wall_coefs=None):
         """Compute H1 persistence diagram from ellipse tangency distances."""
@@ -195,6 +205,8 @@ def _(
     ripser,
     squareform,
 ):
+    T_SCALE = 5.0  # Scale theta for better gradient balancing
+
     def _pack(centers, thetas):
         """Pack centers (N,2) and thetas (N,) into [x0,y0,t0, x1,y1,t1, ...]."""
         n = len(thetas)
@@ -202,7 +214,7 @@ def _(
         for i in range(n):
             x[3 * i] = centers[i, 0]
             x[3 * i + 1] = centers[i, 1]
-            x[3 * i + 2] = thetas[i]
+            x[3 * i + 2] = thetas[i] / T_SCALE
         return x
 
     def _unpack(x):
@@ -213,7 +225,7 @@ def _(
         for i in range(n):
             centers[i, 0] = x[3 * i]
             centers[i, 1] = x[3 * i + 1]
-            thetas[i] = x[3 * i + 2]
+            thetas[i] = x[3 * i + 2] * T_SCALE
         return centers, thetas
 
     def _pack_iso(centers):
@@ -225,7 +237,8 @@ def _(
         return x.reshape(-1, 2)
 
     # Pre-build wall coefs (fixed throughout optimization)
-    _wall_coefs, _n_wall = build_wall_coefs()
+    _wall_coefs, _n_wall, _, _, _v_bounds = build_wall_coefs()
+    _V_XMIN, _V_XMAX, _V_YMIN, _V_YMAX = _v_bounds
 
     def _loss_and_grad_aniso(x, r0, r1):
         """H1 total persistence loss and gradient via analytical VJP.
@@ -278,7 +291,7 @@ def _(
         for i in range(len(thetas)):
             grad_x[3 * i] = grad_centers[i, 0]
             grad_x[3 * i + 1] = grad_centers[i, 1]
-            grad_x[3 * i + 2] = grad_thetas[i]
+            grad_x[3 * i + 2] = grad_thetas[i] * T_SCALE
 
         return loss, grad_x
 
@@ -322,27 +335,40 @@ def _(
         Wall ellipses along [0,1]^2 boundary prevent collapse.
         """
         _rng = np.random.RandomState(SEED)
-        init_centers = _rng.uniform(0.1, 0.9, (N_SENSORS, 2))
-        init_thetas = np.zeros(N_SENSORS)
+        # Initialize sensors securely inside the lower-center of the funnel
+        init_centers_x = _rng.uniform(0.35, 0.65, N_SENSORS)
+        init_centers_y = _rng.uniform(0.25, 0.65, N_SENSORS)
+        init_centers = np.column_stack([init_centers_x, init_centers_y])
+        init_thetas = _rng.uniform(0, np.pi, N_SENSORS)
 
         init_h1 = h1_total_persistence(
             init_centers, init_thetas, R_MAJOR, R_MINOR, wall_coefs=_wall_coefs
         )
+
+        bounds_aniso = []
+        for _ in range(N_SENSORS):
+            bounds_aniso.extend([(_V_XMIN, _V_XMAX), (_V_YMIN, _V_YMAX), (None, None)])
 
         # Stage 1: short run from initial for intermediate snapshot
         _rng_opt = np.random.RandomState(SEED + 100)
         x0 = _pack(init_centers, init_thetas)
         x_start = x0 + _rng_opt.uniform(-0.05, 0.05, len(x0))
         for i in range(N_SENSORS):
-            x_start[3 * i] = np.clip(x_start[3 * i], 0.1, 0.9)
-            x_start[3 * i + 1] = np.clip(x_start[3 * i + 1], 0.1, 0.9)
+            x_start[3 * i] = np.clip(x_start[3 * i], _V_XMIN, _V_XMAX)
+            x_start[3 * i + 1] = np.clip(x_start[3 * i + 1], _V_YMIN, _V_YMAX)
         res_mid = minimize(
             _loss_and_grad_aniso,
             x_start,
             args=(R_MAJOR, R_MINOR),
             method="L-BFGS-B",
             jac=True,
-            options={"maxiter": MAXITER_WARMUP, "ftol": 1e-10, "gtol": 1e-6},
+            bounds=bounds_aniso,
+            options={
+                "maxiter": MAXITER_WARMUP,
+                "ftol": 1e-12,
+                "gtol": 1e-8,
+                "maxcor": 5,
+            },
         )
         c_mid, t_mid = _unpack(res_mid.x)
         mid_h1 = h1_total_persistence(
@@ -353,8 +379,10 @@ def _(
         best_x = res_mid.x.copy()
         best_h1 = mid_h1
         for _trial in range(N_RESTARTS):
-            c0 = _rng_opt.uniform(0.1, 0.9, (N_SENSORS, 2))
-            t0 = _rng_opt.uniform(0, np.pi, N_SENSORS)
+            cx = _rng_opt.uniform(0.35, 0.65, N_SENSORS)
+            cy = _rng_opt.uniform(0.25, 0.65, N_SENSORS)
+            c0 = np.column_stack([cx, cy])
+            t0 = _rng_opt.uniform(-0.05, 0.05, N_SENSORS)
             xs = _pack(c0, t0)
             res = minimize(
                 _loss_and_grad_aniso,
@@ -362,7 +390,13 @@ def _(
                 args=(R_MAJOR, R_MINOR),
                 method="L-BFGS-B",
                 jac=True,
-                options={"maxiter": MAXITER, "ftol": 1e-10, "gtol": 1e-7},
+                bounds=bounds_aniso,
+                options={
+                    "maxiter": MAXITER,
+                    "ftol": 1e-12,
+                    "gtol": 1e-8,
+                    "maxcor": 40,
+                },
             )
             c_trial, t_trial = _unpack(res.x)
             trial_h1 = h1_total_persistence(
@@ -388,16 +422,23 @@ def _(
         """
         _rng_opt = np.random.RandomState(SEED + 300)
         best_h1 = float("inf")
-        best_x = _rng_opt.uniform(0.1, 0.9, 2 * N_SENSORS)
+        best_x = np.zeros(2 * N_SENSORS)
+
+        bounds_iso = []
+        for _ in range(N_SENSORS):
+            bounds_iso.extend([(_V_XMIN, _V_XMAX), (_V_YMIN, _V_YMAX)])
 
         for _trial in range(N_RESTARTS):
-            c0 = _rng_opt.uniform(0.1, 0.9, (N_SENSORS, 2))
+            cx = _rng_opt.uniform(0.35, 0.65, N_SENSORS)
+            cy = _rng_opt.uniform(0.25, 0.65, N_SENSORS)
+            c0 = np.column_stack([cx, cy])
             res = minimize(
                 _loss_and_grad_iso,
                 c0.ravel(),
                 args=(R_ISO,),
                 method="L-BFGS-B",
                 jac=True,
+                bounds=bounds_iso,
                 options={"maxiter": MAXITER, "ftol": 1e-10, "gtol": 1e-7},
             )
             c_trial = _unpack_iso(res.x)
@@ -431,7 +472,6 @@ def _(
 def _(
     Ellipse,
     N_SENSORS,
-    N_WALL_PER_EDGE,
     R_MAJOR,
     R_MINOR,
     R_WALL_MAJOR,
@@ -443,24 +483,17 @@ def _(
     np,
     plt,
 ):
-    _wall_coefs_viz, _ = build_wall_coefs()
+    _wall_coefs_viz, _, _wall_centers, _wall_thetas, _v_bounds = build_wall_coefs()
+    _V_XMIN, _V_XMAX, _V_YMIN, _V_YMAX = _v_bounds
 
     def _draw_wall(ax):
         """Draw fixed wall ellipses in grey."""
-        positions = np.linspace(0, 1, N_WALL_PER_EDGE + 2)[1:-1]
-        wall_specs = []
-        for x in positions:
-            wall_specs.append(([x, 0.0], 0.0))
-            wall_specs.append(([x, 1.0], 0.0))
-        for y in positions:
-            wall_specs.append(([0.0, y], 90.0))
-            wall_specs.append(([1.0, y], 90.0))
-        for (cx, cy), angle_deg in wall_specs:
+        for i in range(len(_wall_centers)):
             ell = Ellipse(
-                xy=(cx, cy),
+                xy=_wall_centers[i],
                 width=2 * R_WALL_MAJOR,
                 height=2 * R_WALL_MINOR,
-                angle=angle_deg,
+                angle=np.degrees(_wall_thetas[i]),
                 facecolor="#cccccc",
                 edgecolor="#999999",
                 linewidth=0.8,
@@ -500,7 +533,7 @@ def _(
         ax.set_aspect("equal")
         ax.set_title(title, fontsize=11, fontweight="bold")
         rect = plt.Rectangle(
-            (0, 0), 1, 1, fill=False, edgecolor="gray", linewidth=1, linestyle="--"
+            (_V_XMIN, _V_YMIN), _V_XMAX - _V_XMIN, _V_YMAX - _V_YMIN, fill=False, edgecolor="gray", linewidth=1.5, linestyle="--"
         )
         ax.add_patch(rect)
         ax.set_xticks([0, 0.5, 1])
@@ -584,7 +617,6 @@ def _(mo):
 def _(
     Ellipse,
     N_SENSORS,
-    N_WALL_PER_EDGE,
     R_ISO,
     R_MAJOR,
     R_MINOR,
@@ -598,23 +630,17 @@ def _(
     np,
     plt,
 ):
-    _wall_coefs_cmp, _ = build_wall_coefs()
+    _wall_coefs_cmp, _, _wall_centers, _wall_thetas, _v_bounds = build_wall_coefs()
+    _V_XMIN, _V_XMAX, _V_YMIN, _V_YMAX = _v_bounds
 
     def _draw_wall_cmp(ax):
-        positions = np.linspace(0, 1, N_WALL_PER_EDGE + 2)[1:-1]
-        wall_specs = []
-        for x in positions:
-            wall_specs.append(([x, 0.0], 0.0))
-            wall_specs.append(([x, 1.0], 0.0))
-        for y in positions:
-            wall_specs.append(([0.0, y], 90.0))
-            wall_specs.append(([1.0, y], 90.0))
-        for (cx, cy), angle_deg in wall_specs:
+        """Draw fixed wall ellipses in grey."""
+        for i in range(len(_wall_centers)):
             ell = Ellipse(
-                xy=(cx, cy),
+                xy=_wall_centers[i],
                 width=2 * R_WALL_MAJOR,
                 height=2 * R_WALL_MINOR,
-                angle=angle_deg,
+                angle=np.degrees(_wall_thetas[i]),
                 facecolor="#cccccc",
                 edgecolor="#999999",
                 linewidth=0.8,
@@ -671,7 +697,7 @@ def _(
     ax_a.set_ylim(-0.15, 1.15)
     ax_a.set_aspect("equal")
     rect_a = plt.Rectangle(
-        (0, 0), 1, 1, fill=False, edgecolor="gray", linewidth=1, linestyle="--"
+        (_V_XMIN, _V_YMIN), _V_XMAX - _V_XMIN, _V_YMAX - _V_YMIN, fill=False, edgecolor="gray", linewidth=1.5, linestyle="--"
     )
     ax_a.add_patch(rect_a)
     ax_a.set_title("Anisotropic (optimized)", fontsize=11, fontweight="bold")
@@ -738,7 +764,7 @@ def _(
     ax_i.set_ylim(-0.15, 1.15)
     ax_i.set_aspect("equal")
     rect_i = plt.Rectangle(
-        (0, 0), 1, 1, fill=False, edgecolor="gray", linewidth=1, linestyle="--"
+        (_V_XMIN, _V_YMIN), _V_XMAX - _V_XMIN, _V_YMAX - _V_YMIN, fill=False, edgecolor="gray", linewidth=1.5, linestyle="--"
     )
     ax_i.add_patch(rect_i)
     ax_i.set_title("Isotropic (optimized)", fontsize=11, fontweight="bold")
