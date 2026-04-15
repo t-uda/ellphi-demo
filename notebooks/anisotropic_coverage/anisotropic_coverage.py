@@ -15,7 +15,7 @@ def _():
     from ellphi.grad import coef_from_cov_grad, pdist_tangency_grad
     from matplotlib.patches import Ellipse
     from ripser import ripser
-    from scipy.spatial.distance import squareform
+    from scipy.spatial.distance import pdist, squareform
 
     nb_dir = Path(__file__).resolve().parent
     return (
@@ -25,6 +25,7 @@ def _():
         mo,
         nb_dir,
         np,
+        pdist,
         pdist_tangency_grad,
         plt,
         ripser,
@@ -64,7 +65,7 @@ def _(plt):
 @app.cell
 def _(np):
     # --- Configuration ---
-    N_SENSORS = 40  # mobile sensors to optimize
+    N_SENSORS = 25  # mobile sensors to optimize
     R_MAJOR = 0.10  # semi-major axis (fixed during optimization)
     R_MINOR = 0.05  # semi-minor axis (fixed during optimization)
     R_ISO = np.sqrt(R_MAJOR * R_MINOR)  # equal-area circle radius
@@ -75,18 +76,22 @@ def _(np):
     R_WALL_MINOR = 0.02  # wall semi-minor (thin)
 
     # Optimization
-    N_RESTARTS = 1
-    MAXITER_WARMUP = 20
-    MAXITER = 100
+    N_RESTARTS = 3
+    MAXITER_WARMUP = 10
+    MAXITER = 40
     LEARNING_RATE = 0.001
-    JIGGLE_RATE = 0.05  # Random θ noise per iteration (e.g. 0.01 = 1%)
-    T_SCALE = 10.00  # Angular scaling factor for gradient balancing
+    JIGGLE_RATE = 0.008  # Random θ noise per iteration (e.g. 0.01 = 1%)
+    T_SCALE = 20.00  # Angular scaling factor for gradient balancing
 
     # Initialization ranges
-    INIT_X_RANGE = (0.15, 0.85)
+    INIT_X_RANGE = (0.20, 0.80)
     INIT_Y_RANGE = (0.30, 0.70)
-    INIT_THETA_RANGE = (-0.15, 0.15)
-    JITTER_MAGNITUDE = 0.05
+    INIT_THETA_RANGE = (-0.10, 0.10)
+    JITTER_MAGNITUDE = 0.01
+
+    # Repulsion (Regularization)
+    REPULSION_K = 3
+    REPULSION_WEIGHT = 0.0002
     return (
         INIT_THETA_RANGE,
         INIT_X_RANGE,
@@ -98,6 +103,8 @@ def _(np):
         MAXITER_WARMUP,
         N_RESTARTS,
         N_SENSORS,
+        REPULSION_K,
+        REPULSION_WEIGHT,
         R_ISO,
         R_MAJOR,
         R_MINOR,
@@ -209,6 +216,8 @@ def _(
     MAXITER_WARMUP,
     N_RESTARTS,
     N_SENSORS,
+    REPULSION_K,
+    REPULSION_WEIGHT,
     R_ISO,
     R_MAJOR,
     R_MINOR,
@@ -220,6 +229,7 @@ def _(
     h1_total_persistence,
     mo,
     np,
+    pdist,
     pdist_tangency_grad,
     ripser,
     squareform,
@@ -241,6 +251,34 @@ def _(
                 x[2::3] += noise
 
         return x, loss
+
+    def compute_repulsion(centers, k, weight):
+        """Compute repulsion loss and gradient based on k-nearest centers."""
+        if weight == 0:
+            return 0.0, np.zeros_like(centers)
+
+        n = len(centers)
+        # Pairwise distance matrix of centers
+        dists = squareform(pdist(centers))
+        # Mask self-distances
+        dists[np.diag_indices(n)] = np.inf
+
+        loss = 0.0
+        grad = np.zeros_like(centers)
+        eps = 1e-4
+
+        for i in range(n):
+            # Find k nearest neighbors for point i
+            knn_indices = np.argsort(dists[i])[:k]
+            for j in knn_indices:
+                d2 = dists[i, j]**2
+                # Penalty: w / (d^2 + eps)
+                loss += 0.5 * weight / (d2 + eps)
+                # Gradient: -w / (d^2 + eps)^2 * (c_i - c_j)
+                diff = centers[i] - centers[j]
+                grad[i] -= weight / (d2 + eps)**2 * diff
+
+        return loss, grad
 
     def initialize_sensors(rng, n_sensors, type="aniso"):
         """Centralized sensor initialization using configuration ranges."""
@@ -323,6 +361,11 @@ def _(
         grad_coefs_all = vjp_dist(grad_dists)
         grad_centers, grad_covs = vjp_coef(grad_coefs_all[_n_wall:])
 
+        # Add Repulsion
+        rep_loss, rep_grad_centers = compute_repulsion(centers, REPULSION_K, REPULSION_WEIGHT)
+        loss += rep_loss
+        grad_centers += rep_grad_centers
+
         # Analytical dCov/dθ chain rule (d=2 only)
         grad_thetas = np.zeros(len(thetas))
         D = np.diag([r0**2, r1**2])
@@ -372,6 +415,11 @@ def _(
 
         grad_coefs_all = vjp_dist(grad_dists)
         grad_centers, _ = vjp_coef(grad_coefs_all[_n_wall:])
+
+        # Add Repulsion
+        rep_loss, rep_grad_centers = compute_repulsion(centers, REPULSION_K, REPULSION_WEIGHT)
+        loss += rep_loss
+        grad_centers += rep_grad_centers
 
         return loss, grad_centers.ravel()
 
