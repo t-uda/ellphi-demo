@@ -34,11 +34,15 @@ Move Jupyter notebooks here from the `ellphi` repository to keep the core librar
 # Install the default environment used by most notebooks
 uv sync
 
-# Add optional notebook dependencies as needed
+# Add optional notebook dependency groups as needed.
+# `uv sync` should include all optional groups you want in that environment.
 uv sync --group jax
 uv sync --group torch
 uv sync --group dti
 uv sync --group homcloud
+
+# Example: install multiple optional groups together
+uv sync --group jax --group homcloud
 
 # Run marimo
 uv run marimo edit
@@ -72,5 +76,6 @@ uv run marimo edit
 export CFLAGS="-I/opt/homebrew/include"
 export CXXFLAGS="-I/opt/homebrew/include"
 export LDFLAGS="-L/opt/homebrew/lib"
-uv sync --group homcloud
+# Include any other optional groups you still need in this environment.
+uv sync --group homcloud --group jax
 ```
