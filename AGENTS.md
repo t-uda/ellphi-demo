@@ -31,8 +31,18 @@ Move Jupyter notebooks here from the `ellphi` repository to keep the core librar
 
 ## Development Setup
 ```bash
-# Install dependencies
+# Install the default environment used by most notebooks
 uv sync
+
+# Add optional notebook dependency groups as needed.
+# `uv sync` should include all optional groups you want in that environment.
+uv sync --group jax
+uv sync --group torch
+uv sync --group dti
+uv sync --group homcloud
+
+# Example: install multiple optional groups together
+uv sync --group jax --group homcloud
 
 # Run marimo
 uv run marimo edit
@@ -60,12 +70,12 @@ uv run marimo edit
 - **Prevention**: Consolidate all common imports into a single setup cell at the beginning of the notebook.
 
 ### macOS Troubleshooting
-If you encounter build errors with `homcloud` related to `CGAL` or `mpfr` (e.g., `'CGAL/version_macros.h' file not found`), you may need to provide include and library paths for Homebrew:
+`homcloud` is optional in this repository. Most notebooks should use the default `uv sync` without it. If you explicitly install `homcloud` and encounter build errors related to `CGAL` or `mpfr` (e.g., `'CGAL/version_macros.h' file not found`), you may need to provide include and library paths for Homebrew:
 
 ```bash
 export CFLAGS="-I/opt/homebrew/include"
 export CXXFLAGS="-I/opt/homebrew/include"
 export LDFLAGS="-L/opt/homebrew/lib"
-uv sync
+# Include any other optional groups you still need in this environment.
+uv sync --group homcloud --group jax
 ```
-

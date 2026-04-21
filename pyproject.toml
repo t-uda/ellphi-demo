@@ -12,7 +12,6 @@ dependencies = [
     "nbformat>=5.10",
     "plotly>=5.22",
     "pandas>=2.2.0",
-    "homcloud>=4.8.0,<5.0.0",
     "tqdm>=4.67.1",
     "seaborn>=0.13",
     "matplotlib>=3.9",
@@ -34,6 +33,7 @@ dev = ["ruff"]
 torch = ["torch>=2.0"]
 jax = ["jax[cpu]>=0.4"]
 dti = ["dipy>=1.7.0"]
+homcloud = ["homcloud>=4.8.0,<5.0.0"]
 
 [build-system]
 requires = ["hatchling"]

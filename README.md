@@ -14,8 +14,18 @@ Notebooks are separated from the main library to avoid repository bloat.
 Ensure you have [uv](https://github.com/astral-sh/uv) installed.
 
 ```bash
-# Install dependencies
+# Install the default environment used by most notebooks
 uv sync
+
+# Add optional notebook dependency groups as needed.
+# `uv sync` should include all optional groups you want in that environment.
+uv sync --group jax
+uv sync --group torch
+uv sync --group dti
+uv sync --group homcloud
+
+# Example: install multiple optional groups together
+uv sync --group jax --group homcloud
 ```
 
 ## Usage
@@ -28,4 +38,3 @@ uv run marimo edit notebooks/your_notebook.py
 ```bash
 uv run jupyter lab
 ```
-
