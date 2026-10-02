@@ -19,7 +19,8 @@ Once `ellphi-demo` is fully operational and the maintenance workflow is establis
 - **Current Stack**: `marimo`, `jupyterlab`, `pandas`, `plotly`, `homcloud`, `seaborn`, `matplotlib`.
 - **Action**: Update the `ellphi` dependency in `pyproject.toml` to point to the newly released version (once bumped).
 - **Package manager**: `uv` (migrated from Poetry).
-- **Status**: Done — `pyproject.toml` uses `uv` with TestPyPI index for ellphi dev releases.
+- **Status**: Done — `pyproject.toml` uses `uv`; `ellphi` is pinned to the
+  released PyPI package (`>=0.1.2,<0.2`), no longer the TestPyPI pre-release.
 
 ### 3. Notebook Migration from `ellphi` repo
 - **Action**: Move remaining `.ipynb` notebooks from `ellphi/notebooks/` to `ellphi-demo/notebooks/` as marimo `.py` notebooks.
