@@ -16,6 +16,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "seaborn>=0.13",
     "matplotlib>=3.9",
+    "pydantic-ai>=1.82.0",
 ]
 
 [tool.uv]

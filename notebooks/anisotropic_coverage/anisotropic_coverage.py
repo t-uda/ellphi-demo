@@ -79,19 +79,19 @@ def _(np):
     N_RESTARTS = 3
     MAXITER_WARMUP = 10
     MAXITER = 40
-    LEARNING_RATE = 0.001
-    JIGGLE_RATE = 0.008  # Random θ noise per iteration (e.g. 0.01 = 1%)
+    LEARNING_RATE = 0.0010
+    JIGGLE_RATE = 0.0008  # Random θ noise per iteration (e.g. 0.01 = 1%)
     T_SCALE = 20.00  # Angular scaling factor for gradient balancing
 
     # Initialization ranges
     INIT_X_RANGE = (0.20, 0.80)
     INIT_Y_RANGE = (0.30, 0.70)
     INIT_THETA_RANGE = (-0.10, 0.10)
-    JITTER_MAGNITUDE = 0.01
+    JITTER_MAGNITUDE = 0.005
 
     # Repulsion (Regularization)
     REPULSION_K = 3
-    REPULSION_WEIGHT = 0.0002
+    REPULSION_WEIGHT = 0.00005
     return (
         INIT_THETA_RANGE,
         INIT_X_RANGE,
@@ -247,8 +247,8 @@ def _(
 
             # θ-Jiggle: add small random noise to rotation components
             if is_aniso and jiggle > 0:
-                noise = np.random.uniform(-jiggle, jiggle, len(x) // 3)
-                x[2::3] += noise
+                noise = np.random.uniform(-jiggle, jiggle, len(x))
+                x += noise
 
         return x, loss
 
